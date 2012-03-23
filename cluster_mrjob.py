@@ -15,7 +15,9 @@ import getopt
 import h5py
 
 from gmm_specializer.gmm import *
-from cluster_mrjob_helper import NaivePythonMR
+from cluster_mrjob_helper import *
+from all_pairs_BIC_score import AllPairsBicScore
+#from mrjob.protocol import PickleProtocol as protocol
 
 MINVALUEFORMINUSLOG = -1000.0
 
@@ -265,7 +267,7 @@ class Diarizer(object):
     
     def segment_majority_vote(self, interval_size, em_iters):
         
-        cloud_flag = True
+        cloud_flag = False
         self.em_iters = em_iters
         
         # Resegment data based on likelihood scoring
@@ -328,9 +330,19 @@ class Diarizer(object):
 
         return iter_bic_dict, iter_bic_list, most_likely
     
-    
+    def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
+        """
+        Finds the GMM pair with the best score by comparing ALL gmm pairs   
+        """
+        if cloud_flag:
+            result = AllPairsBicScore().all_pairs_BIC_using_mapreduce(iteration_bic_list, em_iters)
+            #result = self.MRhelper.bic_using_mapreduce(iteration_bic_list, em_iters)
+        else:
+            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters)
+        return result
+            
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = True
+        cloud_flag = False
         self.MRhelper = NaivePythonMR(em_iters, self.X, self.gmm_list)
         
         print " ====================== CLUSTERING ====================== "
@@ -340,17 +352,20 @@ class Diarizer(object):
         # Get the events, divide them into an initial k clusters and train each GMM on a cluster
         per_cluster = self.N/self.init_num_clusters
         init_training = zip(self.gmm_list,np.vsplit(self.X, range(per_cluster, self.N, per_cluster)))
-        
+                  
         if cloud_flag == False:
             for g, x in init_training:
                 g.train(x, max_em_iters=em_iters)
         else:
-            map(self.MRhelper.train_map, init_training)
+            #map(self.MRhelper.train_map, init_training)
+            self.gmm_list = self.MRhelper.train_using_mapreduce(init_training, em_iters)
+        
+        #self.write_to_GMM('init.gmm')
 
         # ----------- First majority vote segmentation loop ---------
         for segment_iter in range(0,NUM_SEG_LOOPS_INIT):
             iter_bic_dict, iter_bic_list, most_likely = self.segment_majority_vote(seg_length, em_iters)
-
+        #print "after segmenting"
 
         # ----------- Main Clustering Loop using BIC ------------
 
@@ -360,7 +375,6 @@ class Diarizer(object):
         total_loops = 0
         
         while (best_BIC_score > 0 and len(self.gmm_list) > 1):
-
             total_loops+=1
             for segment_iter in range(0,NUM_SEG_LOOPS):
                 iter_bic_dict, iter_bic_list, most_likely = self.segment_majority_vote(seg_length, em_iters)
@@ -404,23 +418,26 @@ class Diarizer(object):
 
             # ------- All-to-all comparison of gmms to merge -------
             else: 
-                l = len(iter_bic_list)
-
-                for gmm1idx in range(l):
-                    for gmm2idx in range(gmm1idx+1, l):
-                        score = 0.0
-                        g1, d1 = iter_bic_list[gmm1idx]
-                        g2, d2 = iter_bic_list[gmm2idx] 
-
-                        data = np.concatenate((d1,d2))
-                        new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
-
-                        #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
-                        if score > best_BIC_score: 
-                            best_merged_gmm = new_gmm
-                            merged_tuple = (g1, g2)
-                            merged_tuple_indices = (gmm1idx, gmm2idx)
-                            best_BIC_score = score
+                cloud_flag = 1
+                if len(iter_bic_list) >= 2:
+                    best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)                
+#                l = len(iter_bic_list)
+#
+#                for gmm1idx in range(l):
+#                    for gmm2idx in range(gmm1idx+1, l):
+#                        score = 0.0
+#                        g1, d1 = iter_bic_list[gmm1idx]
+#                        g2, d2 = iter_bic_list[gmm2idx] 
+#
+#                        data = np.concatenate((d1,d2))
+#                        new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
+#
+#                        #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
+#                        if score > best_BIC_score: 
+#                            best_merged_gmm = new_gmm
+#                            merged_tuple = (g1, g2)
+#                            merged_tuple_indices = (gmm1idx, gmm2idx)
+#                            best_BIC_score = score
 
             # Merge the winning candidate pair if its deriable to do so
             if best_BIC_score > 0.0:
@@ -428,7 +445,7 @@ class Diarizer(object):
                 for gp in iter_bic_list:
                     gmms_with_events.append(gp[0])
 
-                #cleanup the gmm_list - remove empty gmms
+                #cleanup the gmm_list - remove empty gm  best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_scorems
                 for g in self.gmm_list:
                     if g not in gmms_with_events and g != merged_tuple[0] and g!= merged_tuple[1]:
                         #remove
