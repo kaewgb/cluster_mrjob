@@ -3,7 +3,7 @@ Still under development.
 
 3 parts of specializing:
 train() - working
-all_pairs_BIC_score() - almost working
+all_pairs_BIC_score() - working
 segment_majority_vote() - haven't touched yet
 
 Note:
