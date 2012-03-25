@@ -9,15 +9,11 @@ import copy
 import time
 import struct
 import scipy.stats.mstats as stats
-import ConfigParser
 import os.path
 import getopt
 import h5py
 
 from gmm_specializer.gmm import *
-from cluster_mrjob_helper import *
-from all_pairs_BIC_score import AllPairsBicScore
-#from mrjob.protocol import PickleProtocol as protocol
 
 MINVALUEFORMINUSLOG = -1000.0
 
@@ -90,9 +86,8 @@ class Diarizer(object):
             pruned_list = l
 
         floatArray = np.array(pruned_list, dtype = np.float32)
-        print 'floatArray.shape', floatArray.shape
         self.X = floatArray.reshape(num_speech_frames, D)
-        print 'num_speech_frames, D', num_speech_frames, ',', D
+        
         self.N = self.X.shape[0]
         self.D = self.X.shape[1]
 
@@ -232,119 +227,58 @@ class Diarizer(object):
         self.gmm_list = [GMM(self.M, self.D, cvtype=cvtype) for i in range(K)]
 
 
-    def segment_map(self, iter_item):
-        gp, data_list = iter_item
-        g = gp[0]
-        p = gp[1]
-        cluster_data =  data_list[0]
 
-        for d in data_list[1:]:
-            cluster_data = np.concatenate((cluster_data, d))
-
-        g.train(cluster_data, max_em_iters=self.em_iters)
-        return (g, p, cluster_data)
-
-    def segment_reduce(self, x, y):
-        iter_bic_dict, iter_bic_list = x
-        g, p, cluster_data = y
-        iter_bic_list.append((g, cluster_data))
-        iter_bic_dict[p] = cluster_data
-        return (iter_bic_dict, iter_bic_list)
-        
-    def score_map(self, g):
-        return g.score(self.X)
-    def score_reduce(self, x, y):
-        x = np.column_stack((x, y))
-        return x
-    def vote_map(self, map_input):
-        arr, X = map_input
-        return (int(stats.mode(arr)[0][0]), X)
-    
-    def vote_reduce(self, iter_training, item):
-        max_gmm, X = item
-        iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(X)
-        return iter_training
-    
     def segment_majority_vote(self, interval_size, em_iters):
         
-        cloud_flag = False
-        self.em_iters = em_iters
-        
-        # Resegment data based on likelihood scoring
         num_clusters = len(self.gmm_list)
-        if cloud_flag == False:
-            likelihoods = self.gmm_list[0].score(self.X)
-            for g in self.gmm_list[1:]:
-                likelihoods = np.column_stack((likelihoods, g.score(self.X)))
-    
-            if num_clusters == 1:
-                most_likely = np.zeros(len(self.X))
-            else:
-                most_likely = likelihoods.argmax(axis=1)            
+
+        # Resegment data based on likelihood scoring
+        likelihoods = self.gmm_list[0].score(self.X)
+        for g in self.gmm_list[1:]:
+            likelihoods = np.column_stack((likelihoods, g.score(self.X)))
+
+        if num_clusters == 1:
+            most_likely = np.zeros(len(self.X))
         else:
-            if num_clusters == 1:
-                most_likely = np.zeros(len(self.X))
-            else:
-                map_res = map(self.MRhelper.score_map, self.gmm_list)
-                most_likely = reduce(self.MRhelper.score_reduce, map_res).argmax(axis=1) #likelihoods.argmax
-        
+            most_likely = likelihoods.argmax(axis=1)
+
+
         # Across 2.5 secs of observations, vote on which cluster they should be associated with
+
         iter_training = {}
-        if cloud_flag == False:
-            for i in range(interval_size, self.N, interval_size):
-    
-                arr = np.array(most_likely[(range(i-interval_size, i))])
-                max_gmm = int(stats.mode(arr)[0][0])
-                iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(self.X[i-interval_size:i,:])
-    
-            arr = np.array(most_likely[(range((self.N/interval_size)*interval_size, self.N))])
-            max_gmm = int(stats.mode(arr)[0][0])
-            iter_training.setdefault((self.gmm_list[max_gmm], max_gmm),[]).append(self.X[(self.N/interval_size)*interval_size:self.N,:])            
-        else:
-            map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
-                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
-            map_res = map(self.MRhelper.vote_map, map_input)
-            map_res.insert(0, iter_training)
-            iter_training = reduce(self.MRhelper.vote_reduce, map_res)
         
-        # for each gmm, append all the segments and retrain
+        for i in range(interval_size, self.N, interval_size):
+
+            arr = np.array(most_likely[(range(i-interval_size, i))])
+            max_gmm = int(stats.mode(arr)[0][0])
+            iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(self.X[i-interval_size:i,:])
+
+        arr = np.array(most_likely[(range((self.N/interval_size)*interval_size, self.N))])
+        max_gmm = int(stats.mode(arr)[0][0])
+        iter_training.setdefault((self.gmm_list[max_gmm], max_gmm),[]).append(self.X[(self.N/interval_size)*interval_size:self.N,:])
+        
         iter_bic_dict = {}
-        iter_bic_list = []            
-        if cloud_flag == False:
-            for gp, data_list in iter_training.iteritems():
-                g = gp[0]
-                p = gp[1]
-                cluster_data =  data_list[0]
-    
-                for d in data_list[1:]:
-                    cluster_data = np.concatenate((cluster_data, d))
-    
-                g.train(cluster_data, max_em_iters=em_iters)
-    
-                iter_bic_list.append((g,cluster_data))
-                iter_bic_dict[p] = cluster_data
-        else:            
-            map_res = map(self.MRhelper.segment_map, iter_training.iteritems())
-            map_res.insert(0, (iter_bic_dict, iter_bic_list))
-            iter_bic_dict, iter_bic_list = reduce(self.MRhelper.segment_reduce, map_res)
+        iter_bic_list = []
+
+        # for each gmm, append all the segments and retrain
+        for gp, data_list in iter_training.iteritems():
+            g = gp[0]
+            p = gp[1]
+            cluster_data =  data_list[0]
+
+            for d in data_list[1:]:
+                cluster_data = np.concatenate((cluster_data, d))
+
+            g.train(cluster_data, max_em_iters=em_iters)
+
+            iter_bic_list.append((g,cluster_data))
+            iter_bic_dict[p] = cluster_data
 
         return iter_bic_dict, iter_bic_list, most_likely
-    
-    def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
-        """
-        Finds the GMM pair with the best score by comparing ALL gmm pairs   
-        """
-        if cloud_flag:
-            result = AllPairsBicScore().all_pairs_BIC_using_mapreduce(iteration_bic_list, em_iters)
-            #result = self.MRhelper.bic_using_mapreduce(iteration_bic_list, em_iters)
-        else:
-            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters)
-        return result
-            
+
+
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = True
-        self.MRhelper = NaivePythonMR(em_iters, self.X, self.gmm_list)
-        
+
         print " ====================== CLUSTERING ====================== "
         main_start = time.time()
 
@@ -352,20 +286,14 @@ class Diarizer(object):
         # Get the events, divide them into an initial k clusters and train each GMM on a cluster
         per_cluster = self.N/self.init_num_clusters
         init_training = zip(self.gmm_list,np.vsplit(self.X, range(per_cluster, self.N, per_cluster)))
-                  
-        if cloud_flag == False:
-            for g, x in init_training:
-                g.train(x, max_em_iters=em_iters)
-        else:
-            #map(self.MRhelper.train_map, init_training)
-            self.gmm_list = self.MRhelper.train_using_mapreduce(init_training, em_iters)
         
-        #self.write_to_GMM('init.gmm')
+        for g, x in init_training:
+            g.train(x, max_em_iters=em_iters)
 
         # ----------- First majority vote segmentation loop ---------
         for segment_iter in range(0,NUM_SEG_LOOPS_INIT):
             iter_bic_dict, iter_bic_list, most_likely = self.segment_majority_vote(seg_length, em_iters)
-        #print "after segmenting"
+
 
         # ----------- Main Clustering Loop using BIC ------------
 
@@ -375,6 +303,7 @@ class Diarizer(object):
         total_loops = 0
         
         while (best_BIC_score > 0 and len(self.gmm_list) > 1):
+
             total_loops+=1
             for segment_iter in range(0,NUM_SEG_LOOPS):
                 iter_bic_dict, iter_bic_list, most_likely = self.segment_majority_vote(seg_length, em_iters)
@@ -418,26 +347,23 @@ class Diarizer(object):
 
             # ------- All-to-all comparison of gmms to merge -------
             else: 
-                cloud_flag = 1
-                if len(iter_bic_list) >= 2:
-                    best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)                
-#                l = len(iter_bic_list)
-#
-#                for gmm1idx in range(l):
-#                    for gmm2idx in range(gmm1idx+1, l):
-#                        score = 0.0
-#                        g1, d1 = iter_bic_list[gmm1idx]
-#                        g2, d2 = iter_bic_list[gmm2idx] 
-#
-#                        data = np.concatenate((d1,d2))
-#                        new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
-#
-#                        #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
-#                        if score > best_BIC_score: 
-#                            best_merged_gmm = new_gmm
-#                            merged_tuple = (g1, g2)
-#                            merged_tuple_indices = (gmm1idx, gmm2idx)
-#                            best_BIC_score = score
+                l = len(iter_bic_list)
+
+                for gmm1idx in range(l):
+                    for gmm2idx in range(gmm1idx+1, l):
+                        score = 0.0
+                        g1, d1 = iter_bic_list[gmm1idx]
+                        g2, d2 = iter_bic_list[gmm2idx] 
+
+                        data = np.concatenate((d1,d2))
+                        new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
+
+                        #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
+                        if score > best_BIC_score: 
+                            best_merged_gmm = new_gmm
+                            merged_tuple = (g1, g2)
+                            merged_tuple_indices = (gmm1idx, gmm2idx)
+                            best_BIC_score = score
 
             # Merge the winning candidate pair if its deriable to do so
             if best_BIC_score > 0.0:
@@ -445,7 +371,7 @@ class Diarizer(object):
                 for gp in iter_bic_list:
                     gmms_with_events.append(gp[0])
 
-                #cleanup the gmm_list - remove empty gm  best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_scorems
+                #cleanup the gmm_list - remove empty gmms
                 for g in self.gmm_list:
                     if g not in gmms_with_events and g != merged_tuple[0] and g!= merged_tuple[1]:
                         #remove
@@ -463,47 +389,7 @@ class Diarizer(object):
         print "=== Final size of each cluster:", [ g.M for g in self.gmm_list]
 
         return most_likely
-
     
-def print_usage():
-        print """    ---------------------------------------------------------------------
-    Speaker Diarization in Python with Asp and the GMM Specializer usage:
-    ---------------------------------------------------------------------
-    Arguments for the diarizer are parsed from a config file. 
-    Default config file is diarizer.cfg, but you can pass your own file with the '-c' option. 
-    Required is the config file header: [Diarizer] and the options are as follows:
-    
-    --- Required: ---
-    basename: \t Basename of the file to process
-    mfcc_feats: \t MFCC input feature file
-    output_cluster: \t Output clustering file
-    gmm_output: \t Output GMMs parameters file
-    M_mfcc: \t Amount of gaussains per model for mfcc
-    initial_clusters: Number of initial clusters
-
-    --- Optional: ---
-    spnsp_file: \t spnsp file (all features used by default)
-    KL_ntop: \t Nuber of combinations to evaluate BIC on
-            \t 0 to deactive KL-divergency (fastmatch-component)
-    em_iterations: \t Number of iterations for the standard
-                  \t segmentation loop training (3 by default)
-    num_seg_iters_init: \t Number of majority vote iterations
-                        \t in the initialization phase (2 by default)
-    num_seg_iters: \t Number of majority vote iterations
-                   \t in the main loop (3 by default)
-    seg_length: \t Segment length for majority vote in frames
-                \t (250 frames by default)
-
-    For fastest performance, enable KL-divergency (KL_ntop = 3) and set
-      \t num_seg_iters_init and num_seg_iters to 1
-    """
-
-    
-def print_no_config():
-
-    print "Please supply a config file with -c 'config_file_name.cfg' "
-    return
-
 def get_config_params(config):
         #read in filenames
     try:
@@ -575,60 +461,3 @@ def get_config_params(config):
 
         
     return meeting_name, f, sp, outfile, gmmfile, num_gmms, num_comps, num_em_iters, kl_ntop, num_seg_iters_init, num_seg_iters, seg_length
-
-
-
-if __name__ == '__main__':
-    device_id = 0
-    
-    
-    # Process commandline arguments
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "c:", ["help"])
-    except getopt.GetoptError, err:
-        print_no_config()
-        sys.exit(2)
-
-    config_file = 'diarizer.cfg'
-    config_specified = False
-    for o, a in opts:
-        if o == '-c':
-            config_file = a
-            config_specified = True
-        if o == '--help':
-            print_usage()
-            sys.exit(2)
-    
-
-    if not config_specified:
-        print "No config file specified, using defaul 'diarizer.cfg' file"
-    else:
-        print "Using the config file specified: '", config_file, "'"
-
-    try:
-        open(config_file)
-    except IOError, err:
-        print "Error! Config file: '", config_file, "' does not exist"
-        sys.exit(2)
-        
-    # Parse diarizer config file
-    config = ConfigParser.ConfigParser()
-
-    config.read(config_file)
-
-    meeting_name, f, sp, outfile, gmmfile, num_gmms, num_comps, num_em_iters, kl_ntop, num_seg_iters_init, num_seg_iters, seg_length = get_config_params(config)
-
-    # Create tester object
-    diarizer = Diarizer(f, sp)
-
-    # Create the GMM list
-    diarizer.new_gmm_list(num_comps, num_gmms, 'diag')
-
-    # Cluster
-    most_likely = diarizer.cluster(num_em_iters, kl_ntop, num_seg_iters_init, num_seg_iters, seg_length)
-
-    # Write out RTTM and GMM parameter files
-    diarizer.write_to_RTTM(outfile, sp, meeting_name, most_likely, num_gmms, seg_length)
-    diarizer.write_to_GMM(gmmfile)
-
-

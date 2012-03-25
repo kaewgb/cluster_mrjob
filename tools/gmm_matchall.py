@@ -1,8 +1,11 @@
 import sys
+import math
 
 def fequal(x, y):
-    if(abs(x-y) < 0.001):
+    if abs(x-y) < 0.001:
         return True
+    if math.isnan(x) and math.isnan(y):
+        return True 
     return False
 
 def tequal(x, y):
