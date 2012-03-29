@@ -1,5 +1,6 @@
 from mrjob.job import  MRJob
 from mrjob.protocol import PickleProtocol as protocol
+import cPickle as pickle
 
 class TrainMRJob(MRJob):
     
@@ -10,6 +11,8 @@ class TrainMRJob(MRJob):
         config = super(TrainMRJob, self).job_runner_kwargs()
         config['hadoop_input_format'] =  "org.apache.hadoop.mapred.lib.NLineInputFormat"
         config['jobconf']['mapred.line.input.format.linespermap'] = 1
+        config['upload_files'] += ["self_X"]
+        
         config['cmdenv']['PYTHONPATH'] = ":".join([
             "/home/kaewgb/gmm/examples"
         ])
@@ -45,8 +48,10 @@ class TrainMRJob(MRJob):
         return config
     
     def mapper(self, pair, _):
-        id, (g, x), em_iters = pair
-        g.train(x, max_em_iters=em_iters)
+        X = pickle.load(open('self_X', 'r'))
+        id, (g, start, interval), em_iters = pair
+        end = start+interval
+        g.train(X[start:end], max_em_iters=em_iters)
         yield "{0:05d}".format(id), g
     
     def reducer(self, key, value):

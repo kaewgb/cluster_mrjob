@@ -343,7 +343,7 @@ class Diarizer(object):
             
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
         cloud_flag = True
-        self.MRhelper = NaivePythonMR(em_iters, self.X, self.gmm_list)
+        self.MRhelper = MRhelper(em_iters, self.X, self.gmm_list)
         
         print " ====================== CLUSTERING ====================== "
         main_start = time.time()
@@ -357,6 +357,7 @@ class Diarizer(object):
             for g, x in init_training:
                 g.train(x, max_em_iters=em_iters)
         else:
+            init_training = zip(self.gmm_list, range(0, self.N, per_cluster), [per_cluster for i in range(1, self.N)])
             #map(self.MRhelper.train_map, init_training)
             self.gmm_list = self.MRhelper.train_using_mapreduce(init_training, em_iters)
         
@@ -418,26 +419,9 @@ class Diarizer(object):
 
             # ------- All-to-all comparison of gmms to merge -------
             else: 
-                cloud_flag = 1
+                cloud_flag = 0
                 if len(iter_bic_list) >= 2:
                     best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)                
-#                l = len(iter_bic_list)
-#
-#                for gmm1idx in range(l):
-#                    for gmm2idx in range(gmm1idx+1, l):
-#                        score = 0.0
-#                        g1, d1 = iter_bic_list[gmm1idx]
-#                        g2, d2 = iter_bic_list[gmm2idx] 
-#
-#                        data = np.concatenate((d1,d2))
-#                        new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
-#
-#                        #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
-#                        if score > best_BIC_score: 
-#                            best_merged_gmm = new_gmm
-#                            merged_tuple = (g1, g2)
-#                            merged_tuple_indices = (gmm1idx, gmm2idx)
-#                            best_BIC_score = score
 
             # Merge the winning candidate pair if its deriable to do so
             if best_BIC_score > 0.0:

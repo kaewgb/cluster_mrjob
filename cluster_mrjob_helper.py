@@ -3,6 +3,7 @@ import scipy.stats.mstats as stats
 
 import os
 import cPickle as pickle
+from stat import *
 
 from mrjob.job import  MRJob
 from mrjob.protocol import PickleProtocol as protocol
@@ -11,15 +12,24 @@ from cluster_trainmrjob import TrainMRJob
 from cluster_sgmtmrjob import SegmentMRJob
 from cluster_bicmrjob import BICMRJob
 
-class NaivePythonMR:
+class MRhelper:
     def __init__(self, em_iters, X, gmm_list):
+        #For Naive Python
         self.em_iters = em_iters
         self.X = X
         self.gmm_list = gmm_list
-    
+        
+        #For mrjob
+        pickle.dump(self.X, open('self_X', 'w'))
+        os.chmod("self_X", S_IRUSR | S_IWUSR | S_IXUSR | \
+                                 S_IRGRP | S_IXGRP |           \
+                                 S_IROTH | S_IXOTH             )
+        self.Xfilename = 'self_X' 
+        
     def train_map(self, init_training):
-        g, x = init_training;
-        g.train(x, max_em_iters=self.em_iters)
+        g, start, interval = init_training;
+        end = start + interval
+        g.train(self.X[start:end], max_em_iters=self.em_iters)
 
     def train_using_mapreduce(self, init_training, em_iters):
         mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']    
