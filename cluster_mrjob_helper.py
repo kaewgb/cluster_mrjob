@@ -9,6 +9,7 @@ from mrjob.job import  MRJob
 from mrjob.protocol import PickleProtocol as protocol
 
 from cluster_trainmrjob import TrainMRJob
+from cluster_scoremrjob import ScoreMRJob
 from cluster_sgmtmrjob import SegmentMRJob
 from cluster_bicmrjob import BICMRJob
 
@@ -39,17 +40,12 @@ class MRhelper:
             input.append((count, pair, em_iters))
             count = count+1
         task_args = [protocol.write(pair, None)+"\n" for pair in input]
-#        pickle.dump(self.X, open('pickled_args', 'w'))      
-#        os.chmod("pickled_args", S_IRUSR | S_IWUSR | S_IXUSR | \
-#                                 S_IRGRP | S_IXGRP |           \
-#                                 S_IROTH | S_IXOTH             )
-        
         job = TrainMRJob(args=mr_args).sandbox(stdin=task_args)
         runner = job.make_runner()        
         runner.run()
         kv_pairs = map(job.parse_output_line, runner.stream_output())
-        keys = map(lambda(k, v): k, kv_pairs)
-        print "Returned keys:", keys
+        #keys = map(lambda(k, v): k, kv_pairs)
+        #print "Returned keys:", keys
         return map(lambda(k, v): v, kv_pairs)  
         
         
@@ -72,16 +68,35 @@ class MRhelper:
         iter_bic_dict[p] = cluster_data
         return (iter_bic_dict, iter_bic_list)
     
-    def segment_using_mapreduce(self, iter_item, em_iters):
-        mr_args = ['-v', '--strict-protocols', '-r', 'local','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']
-        input = []
-        count = 0
-        for pair in iter_item:
-            input.append((count, pair, em_iters))
-        task_args = [protocol.write(pair, None)+"\n" for pair in iter_item]
+    def segment_using_mapreduce(self, gmm_list):
+        pickle.dump(gmm_list, open('self_gmmlist', 'w'))
+        os.chmod("self_gmmlist", S_IRUSR | S_IWUSR | S_IXUSR | \
+                                 S_IRGRP | S_IXGRP |           \
+                                 S_IROTH | S_IXOTH             )
+        
+        mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']
+        task_args = [protocol.write(g, None)+"\n" for g in gmm_list]
         job = SegmentMRJob(args=mr_args).sandbox(stdin=task_args)
         runner = job.make_runner()
         runner.run()
+        kv_pairs = map(job.parse_output_line, runner.stream_output())
+        return map(lambda(k, v): v, kv_pairs)
+        
+    def score_using_mapreduce(self, gmm_list):
+        mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']
+        input = []
+        count = 0
+        for g in gmm_list:
+            input.append((count, g)) #, self.X))
+            count = count + 1
+        task_args = [protocol.write(g, None)+"\n" for g in input]
+        job = ScoreMRJob(args=mr_args).sandbox(stdin=task_args)
+        runner = job.make_runner()
+        runner.run()
+        kv_pairs = map(job.parse_output_line, runner.stream_output())
+        #keys = map(lambda(k, v): k, kv_pairs)
+        #print "Returned keys:", keys
+        return map(lambda(k, v): v, kv_pairs)  
         
     def score_map(self, g):
         return g.score(self.X)

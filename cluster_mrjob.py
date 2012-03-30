@@ -27,7 +27,7 @@ class Diarizer(object):
         #self.variant_param_spaces = variant_param_spaces
         #self.device_id = device_id
         #self.names_of_backends = names_of_backends
-
+        self.sgmnt_count = 0
         f = open(f_file_name, "rb")
 
         print "...Reading in HTK feature file..."
@@ -265,11 +265,33 @@ class Diarizer(object):
         iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(X)
         return iter_training
     
+    def compare_array(self, a, b):
+        if len(a) != len(b):
+            print 'len(a) = {0} != {1} = len(b)'.format(len(a), len(b))
+            return False
+        cnt_a = [0 for i in range(0,16)]
+        cnt_b = [0 for i in range(0,16)]
+        for i in a:
+            if i >= 16:
+                print 'i=', i 
+                sys.exit()
+            cnt_a[i] = cnt_a[i] + 1
+            
+        for i in b:
+            cnt_b[i] = cnt_b[i] + 1
+            
+        for i in range(0, len(cnt_a)):
+            if cnt_a[i] != cnt_b[i]:
+                print 'cnt_a[{0}] = {1} != {2} = cnt_b[{0}]'.format(i, cnt_a[i], cnt_b[i])
+                return False
+        return True
+        
     def segment_majority_vote(self, interval_size, em_iters):
         
-        cloud_flag = False
+        cloud_flag = True
+        mrjob = True
         self.em_iters = em_iters
-        
+        print "In segment majority vote"
         # Resegment data based on likelihood scoring
         num_clusters = len(self.gmm_list)
         if cloud_flag == False:
@@ -285,9 +307,25 @@ class Diarizer(object):
             if num_clusters == 1:
                 most_likely = np.zeros(len(self.X))
             else:
+                lst = self.MRhelper.score_using_mapreduce(self.gmm_list)
+                print 'len(lst)', len(lst)
+                likelihoods = lst[0]
+                for l in lst[1:]:
+                    likelihoods = np.column_stack((likelihoods, l))
+                most_likely = likelihoods.argmax(axis=1)
+                
+#                if self.sgmnt_count == 0:
+#                    most_likely = self.MRhelper.score_using_mapreduce(self.gmm_list)
+#                    #print 'most_likely:', most_likely
+#                    #print 'most_likely[0]', most_likely[0]
+#                    most_likely = most_likely[0]
+#                    self.sgmnt_count = 1
+#                
                 map_res = map(self.MRhelper.score_map, self.gmm_list)
-                most_likely = reduce(self.MRhelper.score_reduce, map_res).argmax(axis=1) #likelihoods.argmax
-        
+                most_likely2 = reduce(self.MRhelper.score_reduce, map_res).argmax(axis=1) #likelihoods.argmax
+                print self.compare_array(most_likely, most_likely2)
+                #sys.exit()
+        cloud_flag = False
         # Across 2.5 secs of observations, vote on which cluster they should be associated with
         iter_training = {}
         if cloud_flag == False:
@@ -342,7 +380,7 @@ class Diarizer(object):
         return result
             
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = True
+        cloud_flag = False
         self.MRhelper = MRhelper(em_iters, self.X, self.gmm_list)
         
         print " ====================== CLUSTERING ====================== "
