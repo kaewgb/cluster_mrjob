@@ -29,6 +29,7 @@ class Diarizer(object):
         #self.names_of_backends = names_of_backends
         self.sgmnt_count = 0
         f = open(f_file_name, "rb")
+        self.ftime = open('HadoopTime', 'w')
 
         print "...Reading in HTK feature file..."
         
@@ -230,40 +231,6 @@ class Diarizer(object):
         self.M = M
         self.init_num_clusters = K
         self.gmm_list = [GMM(self.M, self.D, cvtype=cvtype) for i in range(K)]
-
-
-    def segment_map(self, iter_item):
-        gp, data_list = iter_item
-        g = gp[0]
-        p = gp[1]
-        cluster_data =  data_list[0]
-
-        for d in data_list[1:]:
-            cluster_data = np.concatenate((cluster_data, d))
-
-        g.train(cluster_data, max_em_iters=self.em_iters)
-        return (g, p, cluster_data)
-
-    def segment_reduce(self, x, y):
-        iter_bic_dict, iter_bic_list = x
-        g, p, cluster_data = y
-        iter_bic_list.append((g, cluster_data))
-        iter_bic_dict[p] = cluster_data
-        return (iter_bic_dict, iter_bic_list)
-        
-    def score_map(self, g):
-        return g.score(self.X)
-    def score_reduce(self, x, y):
-        x = np.column_stack((x, y))
-        return x
-    def vote_map(self, map_input):
-        arr, X = map_input
-        return (int(stats.mode(arr)[0][0]), X)
-    
-    def vote_reduce(self, iter_training, item):
-        max_gmm, X = item
-        iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(X)
-        return iter_training
     
     def compare_array(self, a, b):
         if len(a) != len(b):
@@ -294,12 +261,38 @@ class Diarizer(object):
             if len(a[k]) != len(b[k]):
                 print "len a[{0}]={1}, len b[{0}]={2}".format(k, len(a[k]), len(b[k]))
                 return False
+            print "len a[{0}]={1} = len b[{0}]".format(k, len(a[k]))
+            for i in range(0, len(a[k])):
+                if len(a[k][i]) != len(b[k][i]):
+                    print "len a[{0}][{1}]= {2} != {3} = len b[{0}][{1}]".format(k, i, len(a[k][i]), len(b[k][i]))
+                    return False
+                print "len a[{0}][{1}] = {2} = len b[{0}][{1}]".format(k, i, len(a[k][i]))
+                for j in range(0, len(a[k][i])):
+                    if a[k][i][j] != b[k][i][j]:
+                        print "a[{0}][{1}][{4}] = {2} != {3} = b[{0}][{1}][{4}]".format(k,i,a[k][i][j], b[k][i][j], j)
+                        return False
         print "dict a and b are equal"
         return True
     
+    def compare_data_list(self, a, b):
+        k = 0
+        if len(a) != len(b):
+            print "len a={1}, len b={2}".format(k, len(a), len(b))
+            return False
+        print "len a = {1} = len b".format(k, len(a))
+        for i in range(0, len(a)):
+            if len(a[i]) != len(b[i]):
+                print "len a[{1}] = {2} != {3} = len b[{1}]".format(k, i, len(a[i]), len(b[i]))
+                return False
+            print "len a[{1}] = {2} = len b[{1}]".format(k, i, len(a[i]))
+            for j in range(0, len(a[i])):
+                if a[i][j] != b[i][j]:
+                    print "a[{1}][{4}] = {2} != {3} = b[{1}][{4}]".format(k,i,a[i][j], b[i][j], j)
+                    return False
+    
     def segment_majority_vote(self, interval_size, em_iters):
         
-        cloud_flag = True
+        cloud_flag = False
         mrjob = True
         self.em_iters = em_iters
         print "In segment majority vote"
@@ -318,30 +311,23 @@ class Diarizer(object):
             if num_clusters == 1:
                 most_likely = np.zeros(len(self.X))
             else:
+                score_time = time.time()
                 lst = self.MRhelper.score_using_mapreduce(self.gmm_list)
-                print 'len(lst)', len(lst)
                 likelihoods = lst[0]
                 for l in lst[1:]:
                     likelihoods = np.column_stack((likelihoods, l))
                 most_likely = likelihoods.argmax(axis=1)
-                
-#                if self.sgmnt_count == 0:
-#                    most_likely = self.MRhelper.score_using_mapreduce(self.gmm_list)
-#                    #print 'most_likely:', most_likely
-#                    #print 'most_likely[0]', most_likely[0]
-#                    most_likely = most_likely[0]
-#                    self.sgmnt_count = 1
-#                
-                map_res = map(self.MRhelper.score_map, self.gmm_list)
-                most_likely2 = reduce(self.MRhelper.score_reduce, map_res).argmax(axis=1) #likelihoods.argmax
-                print self.compare_array(most_likely, most_likely2)
-                #sys.exit()
+                self.ftime.write("Hadoop score time: {0}".format(time.time() - score_time))
+
         cloud_flag = False
-#        map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
-#                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
+        map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
+                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
 #        iter_bic_dict2, iter_bic_list2 = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
+        gmm_data_list = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
+        print "gmm_data_list:"
+        print gmm_data_list
         
-#        # Across 2.5 secs of observations, vote on which cluster they should be associated with
+        # Across 2.5 secs of observations, vote on which cluster they should be associated with
         iter_training = {}
         if cloud_flag == False:
             for i in range(interval_size, self.N, interval_size):
@@ -359,6 +345,17 @@ class Diarizer(object):
             map_res = map(self.MRhelper.vote_map, map_input)
             map_res.insert(0, iter_training)
             iter_training = reduce(self.MRhelper.vote_reduce, map_res)
+            
+        
+#        for gp, data_list in iter_training.iteritems():
+#            g, p = gp
+#            cluster_data =  data_list[0]
+#            for d in data_list[1:]:
+#                cluster_data = np.concatenate((cluster_data, d))
+#            print "cluster_data[{0}]".format(p)
+#            print cluster_data
+#            self.compare_data_list(gmm_data_list[p], cluster_data)
+#        sys.exit()
         
         # for each gmm, append all the segments and retrain
         iter_bic_dict = {}
@@ -372,6 +369,7 @@ class Diarizer(object):
                 for d in data_list[1:]:
                     cluster_data = np.concatenate((cluster_data, d))
     
+                cluster_data = gmm_data_list[p]
                 g.train(cluster_data, max_em_iters=em_iters)
     
                 iter_bic_list.append((g,cluster_data))
@@ -381,8 +379,9 @@ class Diarizer(object):
             map_res.insert(0, (iter_bic_dict, iter_bic_list))
             iter_bic_dict, iter_bic_list = reduce(self.MRhelper.segment_reduce, map_res)
 
-#        self.compare_dict(iter_bic_dict, iter_bic_dict2)
-#        sys.exit()
+#        iter_bic_dict2 = iter_bic_dict
+        #self.compare_dict(iter_bic_dict, iter_bic_dict2)
+        #sys.exit()
         return iter_bic_dict, iter_bic_list, most_likely
     
     def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
@@ -397,7 +396,7 @@ class Diarizer(object):
         return result
             
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = True
+        cloud_flag = False
         self.MRhelper = MRhelper(em_iters, self.X, self.gmm_list)
         
         print " ====================== CLUSTERING ====================== "
@@ -414,7 +413,9 @@ class Diarizer(object):
         else:
             init_training = zip(self.gmm_list, range(0, self.N, per_cluster), [per_cluster for i in range(1, self.N)])
             #map(self.MRhelper.train_map, init_training)
+            train_start = time.time()
             self.gmm_list = self.MRhelper.train_using_mapreduce(init_training, em_iters)
+            self.ftime.write('Hadoop train time: {0}\n'.format(time.time() - train_start))
         
         #self.write_to_GMM('init.gmm')
 
@@ -476,7 +477,9 @@ class Diarizer(object):
             else: 
                 cloud_flag = 0
                 if len(iter_bic_list) >= 2:
-                    best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)                
+                    bic_start = time.time()
+                    best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)
+                    self.ftime.write("Hadoop BIC time: {0}\n".format(time.time() - bic_start))               
 
             # Merge the winning candidate pair if its deriable to do so
             if best_BIC_score > 0.0:
