@@ -19,10 +19,17 @@ class SegmentMRJob(ClusterMRJob):
         yield '{0:05d}'.format(max_gmm), X
     
     def reducer(self, gmm_id, data_list):
+        gmm_id = int(gmm_id)
+        gmm_list = pickle.load(open('self_gmmlist', 'r'))
+        em_iter = pickle.load(open('self_em_iter', 'r'))
+        
         X = data_list.next()
         for d in data_list:
             X = np.concatenate((X, d))
-        yield gmm_id, X
+            
+        gmm_list[gmm_id].train(X, em_iter)
+        yield gmm_id, (gmm_list[gmm_id], X)
+        
 #        gmm_id = int(gmm_id)
 #        gmm_list = pickle.load(open('self_gmmlist', 'r'))
 #        em_iter = pickle.load(open('self_em_iter', 'r'))

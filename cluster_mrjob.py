@@ -322,10 +322,10 @@ class Diarizer(object):
         cloud_flag = False
         map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
                             np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
-#        iter_bic_dict2, iter_bic_list2 = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
-        gmm_data_list = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
-        print "gmm_data_list:"
-        print gmm_data_list
+        iter_bic_dict2, iter_bic_list2 = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
+#        gmm_data_list = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
+#        print "gmm_data_list:"
+#        print gmm_data_list
         
         # Across 2.5 secs of observations, vote on which cluster they should be associated with
         iter_training = {}
@@ -369,7 +369,7 @@ class Diarizer(object):
                 for d in data_list[1:]:
                     cluster_data = np.concatenate((cluster_data, d))
     
-                cluster_data = gmm_data_list[p]
+                #cluster_data = gmm_data_list[p]
                 g.train(cluster_data, max_em_iters=em_iters)
     
                 iter_bic_list.append((g,cluster_data))
@@ -382,7 +382,7 @@ class Diarizer(object):
 #        iter_bic_dict2 = iter_bic_dict
         #self.compare_dict(iter_bic_dict, iter_bic_dict2)
         #sys.exit()
-        return iter_bic_dict, iter_bic_list, most_likely
+        return iter_bic_dict2, iter_bic_list2, most_likely
     
     def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
         """
