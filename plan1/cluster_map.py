@@ -29,10 +29,14 @@ class ClusterMRJob(MRJob):
             "/n/shokuji/da/penpornk/local/hadoop/bin"
         ])
         config['cmdenv']['LD_LIBRARY_PATH'] = ":".join([
+            "/usr/lib64/atlas",
             "/usr/local64/lang/cuda-3.2/lib64",
             "/usr/local64/lang/cuda-3.2/lib",
             "/n/shokuji/da/penpornk/local/lib"                                            
         ])
+        config['cmdenv']['BLAS'] = "/usr/lib64/atlas/libptcblas.so"
+        config['cmdenv']['LAPACK'] = "/usr/lib64/atlas/liblapack.so"
+        config['cmdenv']['ATLAS'] = "/usr/lib64/atlas/libatlas.so"
         config['cmdenv']['C_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
         config['cmdenv']['CPLUS_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
         config['python_bin'] = "/n/shokuji/da/penpornk/env/gmm/bin/python"
@@ -49,7 +53,7 @@ class ClusterMRJob(MRJob):
     
     def mapper(self, key, _):
         device_id = 0
-        config_file = '/n/shokuji/da/penpornk/all/diarizer.cfg'
+        config_file = '/n/shokuji/da/penpornk/all/medium.cfg'
         logfile = '/n/shokuji/da/penpornk/all/output/{0}.log'.format(key)
         log = open(logfile, 'w')
         tmp = sys.stdout
@@ -70,8 +74,8 @@ class ClusterMRJob(MRJob):
         
         #Overwrite with Map parameters
         meeting_name = key
-        f = '/n/shokuji/da/penpornk/full_experiment_sets/AMI/features_ff/{0}_seg.feat.gauss.htk'.format(meeting_name)
-        #f = '/u/drspeech/data/Aladdin/corpora/trecvid2011/events/E001/{0}_'
+        #f = '/n/shokuji/da/penpornk/full_experiment_sets/AMI/features_ff/{0}_seg.feat.gauss.htk'.format(meeting_name)
+        f = '/u/drspeech/data/Aladdin/corpora/trecvid2011/events/E001/{0}.htk'.format(meeting_name)
         sp = False
         outfile = '/n/shokuji/da/penpornk/all/output/{0}.rttm'.format(meeting_name)
         gmmfile = '/n/shokuji/da/penpornk/all/output/{0}.gmm'.format(meeting_name)
