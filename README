@@ -2,11 +2,12 @@ MRJOb MapReduce specializer for hcook's gmm cluster example.
 Still under development.
 
 3 parts of specializing:
-train() - working
+train() - working (using file pointer)
 all_pairs_BIC_score() - working
-segment_majority_vote() - haven't touched yet
+segment_majority_vote() - 1/6 working
 
 Note:
 - cluster_bicmrjob.py = all_pairs_BIC_score.py, it just doesn't rely on our MapReduce backend.
+- cluster_mrtemplate.py is kind of our new (temporary) MapReduce backend.
 - Need to mute output from CodePy and ASP
 - Need to modify gmm_specializer package -> add one more parameter in calls to ASPTemplate.Template(), either disable_unicode=False or bytestream_passthrough=True

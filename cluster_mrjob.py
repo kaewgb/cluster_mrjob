@@ -286,6 +286,17 @@ class Diarizer(object):
                 return False
         return True
         
+    def compare_dict(self, a, b):
+        if len(a.keys()) != len(b.keys()):
+            print "len a:", len(a.keys()), "len b:", len(b.keys())
+            return False
+        for k in a.keys():
+            if len(a[k]) != len(b[k]):
+                print "len a[{0}]={1}, len b[{0}]={2}".format(k, len(a[k]), len(b[k]))
+                return False
+        print "dict a and b are equal"
+        return True
+    
     def segment_majority_vote(self, interval_size, em_iters):
         
         cloud_flag = True
@@ -326,7 +337,11 @@ class Diarizer(object):
                 print self.compare_array(most_likely, most_likely2)
                 #sys.exit()
         cloud_flag = False
-        # Across 2.5 secs of observations, vote on which cluster they should be associated with
+#        map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
+#                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
+#        iter_bic_dict2, iter_bic_list2 = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
+        
+#        # Across 2.5 secs of observations, vote on which cluster they should be associated with
         iter_training = {}
         if cloud_flag == False:
             for i in range(interval_size, self.N, interval_size):
@@ -366,6 +381,8 @@ class Diarizer(object):
             map_res.insert(0, (iter_bic_dict, iter_bic_list))
             iter_bic_dict, iter_bic_list = reduce(self.MRhelper.segment_reduce, map_res)
 
+#        self.compare_dict(iter_bic_dict, iter_bic_dict2)
+#        sys.exit()
         return iter_bic_dict, iter_bic_list, most_likely
     
     def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
@@ -380,7 +397,7 @@ class Diarizer(object):
         return result
             
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = False
+        cloud_flag = True
         self.MRhelper = MRhelper(em_iters, self.X, self.gmm_list)
         
         print " ====================== CLUSTERING ====================== "

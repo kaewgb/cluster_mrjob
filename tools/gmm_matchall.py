@@ -72,6 +72,7 @@ def parse(input):
     f = open(input, 'r')
     lines = f.readlines()
     no_clusters = int(lines[0][20:])
+    no_features = 60 #Change to 19 if use with AMI data
     i = 1
     clusters = []
     while i < len(lines):
@@ -86,13 +87,13 @@ def parse(input):
         for g in range(0, no_gaussians):
             gauss = {}
             if lines[i][:10] != 'Gaussian: ' or int(lines[i][10:]) != g:
-                raise Exception('Wrong input format. No Gaussian number specified')
+                raise Exception('Wrong input format. No Gaussian number specified\nline=', lines[i])
             if lines[i+1][:8] != 'Weight: ':
                 raise Exception('Wrong input format. No weights specified for gaussian #', g, 'of Cluster#', current_cluster)
             gauss['weight'] = float(lines[i+1][8:])
             i = i+2
             features = []
-            for j in range(0, 19):
+            for j in range(0, no_features):
                 comps = lines[i].split(' ')
                 features.append((float(comps[3]), float(comps[5])))
                 i = i+1

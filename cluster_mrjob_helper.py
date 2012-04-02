@@ -68,19 +68,31 @@ class MRhelper:
         iter_bic_dict[p] = cluster_data
         return (iter_bic_dict, iter_bic_list)
     
-    def segment_using_mapreduce(self, gmm_list):
+    def segment_using_mapreduce(self, gmm_list, map_input, em_iter):
         pickle.dump(gmm_list, open('self_gmmlist', 'w'))
         os.chmod("self_gmmlist", S_IRUSR | S_IWUSR | S_IXUSR | \
                                  S_IRGRP | S_IXGRP |           \
                                  S_IROTH | S_IXOTH             )
+        pickle.dump(em_iter, open('self_em_iter', 'w'))
+        os.chmod("self_em_iter", S_IRUSR | S_IWUSR | S_IXUSR | \
+                                 S_IRGRP | S_IXGRP |           \
+                                 S_IROTH | S_IXOTH             )
         
-        mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']
-        task_args = [protocol.write(g, None)+"\n" for g in gmm_list]
+        mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']        
+        task_args = [protocol.write(i, None)+"\n" for i in map_input]
         job = SegmentMRJob(args=mr_args).sandbox(stdin=task_args)
         runner = job.make_runner()
         runner.run()
         kv_pairs = map(job.parse_output_line, runner.stream_output())
-        return map(lambda(k, v): v, kv_pairs)
+        iter_bic_list = map(lambda(k, v): v, kv_pairs)
+        iter_bic_dict = {}
+        for pair in kv_pairs:
+            p, (g, data) = pair
+            iter_bic_dict[p] = data
+            gmm_list[p] = g
+        return iter_bic_dict, iter_bic_list
+            
+            
         
     def score_using_mapreduce(self, gmm_list):
         mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']

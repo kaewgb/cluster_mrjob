@@ -1,67 +1,33 @@
-from mrjob.job import  MRJob
-from mrjob.protocol import PickleProtocol as protocol
-import cPickle as pickle
+import numpy as np
+import scipy.stats.mstats as stats
 
-class SegmentMRJob(MRJob):
-    
-    INPUT_PROTOCOL = protocol
-    OUTPUT_PROTOCOL = protocol
+from cluster_mrtemplate import *
+
+
+class SegmentMRJob(ClusterMRJob):
     
     def job_runner_kwargs(self):
         config = super(SegmentMRJob, self).job_runner_kwargs()
-        config['hadoop_input_format'] =  "org.apache.hadoop.mapred.lib.NLineInputFormat"
-        config['jobconf']['mapred.line.input.format.linespermap'] = 1
         config['upload_files'] += ["self_X"]
         config['upload_files'] += ["self_gmmlist"]
-        
-        config['cmdenv']['PYTHONPATH'] = ":".join([
-            "/home/kaewgb/gmm/examples"
-        ])
-        config['cmdenv']['PATH'] = ":".join([
-            "/n/shokuji/da/penpornk/env/gmm/bin",
-            "/n/shokuji/da/penpornk/local/bin",
-            "/usr/local/bin", "/usr/bin", "/bin",
-            "/usr/X11/bin",
-            "/usr/local64/lang/cuda-3.2/bin/",
-            "/n/shokuji/da/penpornk/local/hadoop/bin"
-        ])
-        config['cmdenv']['LD_LIBRARY_PATH'] = ":".join([
-            "/usr/local64/lang/cuda-3.2/lib64",
-            "/usr/local64/lang/cuda-3.2/lib",
-            "/n/shokuji/da/penpornk/local/lib"                                            
-        ])
-        config['cmdenv']['C_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
-        config['cmdenv']['CPLUS_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
-        config['python_bin'] = "/n/shokuji/da/penpornk/env/gmm/bin/python"
-        
-        config['bootstrap_mrjob'] = False
-        return config
-        
-    def hadoop_job_runner_kwargs(self):
-        config = super(SegmentMRJob, self).hadoop_job_runner_kwargs()
-        config['hadoop_extra_args'] += [
-            "-verbose",
-        #    "-mapdebug", "/n/shokuji/da/penpornk/diarizer/debug.sh"
-        ]
+        config['upload_files'] += ["self_em_iter"]
         return config
     
     def mapper(self, pair, _):
-        most_likely, start, interval = pair
-        max_gmm = int(stats.mode(most_likely)[0][0])
-        yield max_gmm, (start, interval)
+        arr, X = pair
+        max_gmm = int(stats.mode(arr)[0][0])
+        yield '{0:05d}'.format(max_gmm), X
     
-    def reducer(self, gmm_id, indices):
-        X = pickle.load(open('self_X', 'r'))
+    def reducer(self, gmm_id, data_list):
+        gmm_id = int(gmm_id)
         gmm_list = pickle.load(open('self_gmmlist', 'r'))
-        data = []
-        for index in indices:
-            start, interval = index
-            end = start + interval
-            data.append(X[start:end])
-            
-        gmm_list[gmm_id].train(data)
+        em_iter = pickle.load(open('self_em_iter', 'r'))
+        x = data_list.next()
+        for d in data_list:
+            x = np.concatenate((x, d))
         
-        yield gmm_id, data
+        gmm_list[gmm_id].train(x, em_iter)
+        yield gmm_id, (gmm_list[gmm_id], x)
     
 if __name__ == '__main__':
     SegmentMRJob.run()  
