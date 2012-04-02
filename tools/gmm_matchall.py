@@ -15,10 +15,10 @@ def tequal(x, y):
 
 def gequal(x, y, c):
     no_gaussians = len(x)
+    gaussian_list = range(0, no_gaussians)
     for j in range(0, no_gaussians):
         gaussian1 = x[j]
         found = False
-        gaussian_list = range(0, no_gaussians)
         for k in gaussian_list:
             if(fequal(y[k]['weight'], gaussian1['weight']) and
                tequal(y[k]['features'][0], gaussian1['features'][0])):
