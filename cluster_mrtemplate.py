@@ -15,8 +15,19 @@ class ClusterMRJob(MRJob):
         config['hadoop_input_format'] =  "org.apache.hadoop.mapred.lib.NLineInputFormat"
         config['jobconf']['mapred.line.input.format.linespermap'] = 1
         
-        squid = False
+        squid = True
         if squid:
+            config['cmdenv']['PYTHONPATH'] = ":".join([
+                "/n/shokuji/da/penpornk/diarizer"
+            ])
+            config['cmdenv']['PATH'] = ":".join([
+                "/n/shokuji/da/penpornk/env/gmm/bin",
+                "/n/shokuji/da/penpornk/local/bin",
+                "/usr/local/bin", "/usr/bin", "/bin",
+                "/usr/X11/bin",
+                "/usr/local64/lang/cuda-3.2/bin/",
+                "/n/shokuji/da/penpornk/local/hadoop/bin"
+            ])
             config['cmdenv']['PATH'] = ":".join([
                 "/n/shokuji/da/penpornk/env/gmm/bin",
                 "/n/shokuji/da/penpornk/local/bin",
@@ -26,12 +37,16 @@ class ClusterMRJob(MRJob):
                 "/n/shokuji/da/penpornk/local/hadoop/bin"
             ])
             config['cmdenv']['LD_LIBRARY_PATH'] = ":".join([
+                "/usr/lib64/atlas",
                 "/usr/local64/lang/cuda-3.2/lib64",
                 "/usr/local64/lang/cuda-3.2/lib",
                 "/n/shokuji/da/penpornk/local/lib"                                            
             ])
             config['cmdenv']['C_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
             config['cmdenv']['CPLUS_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
+            config['cmdenv']['BLAS'] = "/usr/lib64/atlas/libptcblas.so"
+            config['cmdenv']['LAPACK'] = "/usr/lib64/atlas/liblapack.so"
+            config['cmdenv']['ATLAS'] = "/usr/lib64/atlas/libatlas.so"
             config['python_bin'] = "/n/shokuji/da/penpornk/env/gmm/bin/python"    
         else:
             # Trying to config $HOME for the expanduser("~") bug. But both didn't work.
