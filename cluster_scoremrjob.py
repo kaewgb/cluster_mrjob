@@ -13,10 +13,10 @@ class ScoreMRJob(ClusterMRJob):
             l = col 
         yield dummy, l
         
-        likelihoods = cols.next()
-        for col in cols:
-            likelihoods = np.column_stack((likelihoods, col))            
-        yield dummy, likelihoods.argmax(axis=1)
+#        likelihoods = cols.next()
+#        for col in cols:
+#            likelihoods = np.column_stack((likelihoods, col))            
+#        yield dummy, likelihoods.argmax(axis=1)
     
 if __name__ == '__main__':
     ScoreMRJob.run()  
