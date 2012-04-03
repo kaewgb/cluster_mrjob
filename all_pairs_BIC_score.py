@@ -1,64 +1,24 @@
-from asp.jit import mapreduce_support as mr
-from mrjob import protocol as pr
+from cluster_mrtemplate import ClusterMRJob
+
 import numpy as np
-#from em import *
 from gmm_specializer.gmm import compute_distance_BIC
 from mrjob.protocol import PickleProtocol as protocol
 
-class AllPairsBicScoreMRJob(mr.AspMRJob):
-
-    #INPUT_PROTOCOL = protocol
-    #OUTPUT_PROTOCOL = protocol
-    
-    DEFAULT_INPUT_PROTOCOL = 'pickle'
-    DEFAULT_PROTOCOL = 'pickle'
-
-    def job_runner_kwargs(self):
-        config = super(AllPairsBicScoreMRJob, self).job_runner_kwargs()
-        config['hadoop_input_format'] =  "org.apache.hadoop.mapred.lib.NLineInputFormat"
-        config['jobconf']['mapred.line.input.format.linespermap'] = 1
-        #config['cmdenv']['PYTHONPATH'] = ":".join([
-        #    "/home/kaewgb/gmm/examples"
-        #])
-        config['cmdenv']['PATH'] = ":".join([
-            "/n/shokuji/da/penpornk/env/gmm/bin",
-            "/n/shokuji/da/penpornk/local/bin",
-            "/usr/local/bin", "/usr/bin", "/bin",
-            "/usr/X11/bin",
-            "/usr/local64/lang/cuda-3.2/bin/",
-            "/n/shokuji/da/penpornk/local/hadoop/bin"
-        ])
-        config['cmdenv']['LD_LIBRARY_PATH'] = ":".join([
-            "/usr/local64/lang/cuda-3.2/lib64",
-            "/usr/local64/lang/cuda-3.2/lib",
-            "/n/shokuji/da/penpornk/local/lib"                                            
-        ])
-        config['cmdenv']['C_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
-        config['cmdenv']['CPLUS_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
-        config['python_bin'] = "/n/shokuji/da/penpornk/env/gmm/bin/python"
-        config['bootstrap_mrjob'] = False
-        return config
+class AllPairsBicScoreMRJob(ClusterMRJob):
 
     def mapper(self, key, value):
         """
         Each mapper computes the BIC score for a GMM pair
         """
-        #import sys
         index1, index2 = key        
         g1, g2, data, em_iters = value
         new_gmm = g1
         score = 0
-#        f = open('inmapper', 'w')
-#        f.write('inmapper')
-#        f.close()
-        #print >>sys.stderr, "K,V", key, value
         try:
             new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
         except:
-            #print sys.stderr, "SKIPPING", g1, g2
             raise
         data_to_yield = (score, new_gmm, g1, g2, index1, index2)
-        #print "MAP YIELDS", data_to_yield
         yield 1, data_to_yield
     
     
@@ -78,9 +38,6 @@ class AllPairsBicScoreMRJob(mr.AspMRJob):
                 best_merged_gmm = merged_gmm
                 
         result = (best_merged_gmm, merged_tuple, merged_tuple_indices, best_score)
-#        f = open('/home/kaewgb/gmm/examples/results', 'w')
-#        f.write(result)
-#        f.close()
         yield 1, result
         
     def steps(self):
@@ -107,7 +64,7 @@ class AllPairsBicScore(object):
                 g1, d1 = iteration_bic_list[gmm1idx]
                 g2, d2 = iteration_bic_list[gmm2idx]
                 data = np.concatenate((d1,d2))
-                an_item = pr.PickleProtocol().write((gmm1idx,gmm2idx),(g1, g2, data, em_iters))
+                an_item = protocol().write((gmm1idx,gmm2idx),(g1, g2, data, em_iters))
                 input.append(an_item+"\n")     
         
         mr_args = ['-v', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']
@@ -115,9 +72,7 @@ class AllPairsBicScore(object):
         runner = job.make_runner()
         runner.run()
         kv_pairs = map(job.parse_output_line, runner.stream_output())
-        #print 'kv_pairs: ', kv_pairs
         assert len(kv_pairs) == 1
-        #best_score, merged_tuple, best_merged_gmm, ind1, ind2 = kv_pairs[0][1]
         best_merged_gmm, merged_tuple, merged_tuple_indices, best_score = kv_pairs[0][1]
     
         # Re-merge the GMM pair with the highest score *here*, otherwise the next
@@ -133,7 +88,6 @@ class AllPairsBicScore(object):
         new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
             
         return new_gmm, (g1, g2), merged_tuple_indices, best_score
-        #return best_score, (g1,g2), new_gmm, ind1, ind2
     
     
     def all_pairs_BIC_serial(self, iter_bic_list, em_iters):
@@ -157,8 +111,7 @@ class AllPairsBicScore(object):
 
                 data = np.concatenate((d1,d2))
                 new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
-
-                #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
+                
                 if score > best_BIC_score: 
                     best_merged_gmm = new_gmm
                     merged_tuple = (g1, g2)
@@ -166,28 +119,6 @@ class AllPairsBicScore(object):
                     best_BIC_score = score
         
         return best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score
-                    
-#        l = len(iteration_bic_list)
-#        best_merged_gmm = None
-#        best_score = 0.0
-#        ind1 = 0
-#        ind2 = 0
-#        merged_tuple = None
-#        for gmm1idx in range(l):
-#            for gmm2idx in range(gmm1idx+1, l):
-#                score = 0.0
-#                g1, d1 = iteration_bic_list[gmm1idx]
-#                g2, d2 = iteration_bic_list[gmm2idx]
-#                data = np.concatenate((d1,d2))
-#                new_gmm, score = compute_distance_BIC(g1, g2, data)
-#                if score > best_score: 
-#                    best_merged_gmm = new_gmm
-#                    merged_tuple = (g1, g2)
-#                    best_score = score
-#                    ind1 = gmm1idx
-#                    ind2 = gmm2idx
-#                        
-#        return best_score, merged_tuple, best_merged_gmm, ind1, ind2
 
 # this appears to be necessary because this script will be called as __main__ on
 # every worker node.
