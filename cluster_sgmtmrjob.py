@@ -8,7 +8,6 @@ class SegmentMRJob(ClusterMRJob):
     
     def job_runner_kwargs(self):
         config = super(SegmentMRJob, self).job_runner_kwargs()
-        config['upload_files'] += ["self_X"]
         config['upload_files'] += ["self_gmmlist"]
         config['upload_files'] += ["self_em_iter"]
         return config

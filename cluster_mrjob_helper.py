@@ -25,7 +25,9 @@ class MRhelper:
         os.chmod("self_X", S_IRUSR | S_IWUSR | S_IXUSR | \
                                  S_IRGRP | S_IXGRP |           \
                                  S_IROTH | S_IXOTH             )
-        self.Xfilename = 'self_X' 
+        from subprocess import call
+        call(["/n/shokuji/da/penpornk/local/hadoop/bin/hadoop", "dfs", "-rm", "/user/penpornk/tmp/self_X"])
+        call(["/n/shokuji/da/penpornk/local/hadoop/bin/hadoop", "dfs", "-put", "self_X", "/user/penpornk/tmp/self_X"])
         
     def train_map(self, init_training):
         g, start, interval = init_training;

@@ -1,12 +1,7 @@
 from cluster_mrtemplate import *
 
 class ScoreMRJob(ClusterMRJob):
-        
-    def job_runner_kwargs(self):
-        config = super(ScoreMRJob, self).job_runner_kwargs()
-        config['upload_files'] += ["self_X"]
-        return config
-    
+            
     def mapper(self, pair, _):
         X = pickle.load(open('self_X', 'r'))
         key, g = pair

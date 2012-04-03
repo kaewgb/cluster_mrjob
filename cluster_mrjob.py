@@ -388,14 +388,14 @@ class Diarizer(object):
     
                 for d in data_list[1:]:
                     cluster_data = np.concatenate((cluster_data, d))
-                
+#                
                 if self.compare_data_list(cluster_data, iter_bic_dict2[p]) == False:
                     sys.exit()
-                cluster_data = iter_bic_dict2[p]
-                #g.train(cluster_data, max_em_iters=em_iters)
-    
-                iter_bic_list.append((g,cluster_data))
-                iter_bic_dict[p] = cluster_data
+#                cluster_data = iter_bic_dict2[p]
+#                g.train(cluster_data, max_em_iters=em_iters)
+#    
+#                iter_bic_list.append((g,cluster_data))
+#                iter_bic_dict[p] = cluster_data
 
                 
 #        elif hadoop == False:
@@ -422,6 +422,7 @@ class Diarizer(object):
         self.ftime.write("Segment: {0}\n".format(time.time() - segment_time))
 
         return iter_bic_dict2, iter_bic_list2, most_likely
+#        return iter_bic_dict, iter_bic_list, most_likely
     
     
     def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
