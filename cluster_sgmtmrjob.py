@@ -2,6 +2,7 @@ import numpy as np
 import scipy.stats.mstats as stats
 
 from cluster_mrtemplate import *
+import cluster_tools as tools
 
 
 class SegmentMRJob(ClusterMRJob):
@@ -23,7 +24,7 @@ class SegmentMRJob(ClusterMRJob):
         gmm_id = int(gmm_id)
         gmm_list = pickle.load(open('self_gmmlist', 'r'))
         em_iter = pickle.load(open('self_em_iter', 'r'))
-        X = pickle.load(open('self_X', 'r'))
+        X = tools.binary_read('self_X')
         
         start, end = indices.next()
         cluster_data = X[start:end]

@@ -1,9 +1,15 @@
 from cluster_mrtemplate import *
+import cluster_tools as tools
 
 class ScoreMRJob(ClusterMRJob):
+    
+    def job_runner_kwargs(self):
+        config = super(ScoreMRJob, self).job_runner_kwargs()
+        config['jobconf']['mapred.line.input.format.linespermap'] = 4
+        return config
             
     def mapper(self, pair, _):
-        X = pickle.load(open('self_X', 'r'))
+        X = tools.binary_read('self_X')
         key, g = pair
         likelihood = g.score(X)
         yield '{0:05d}'.format(key), likelihood

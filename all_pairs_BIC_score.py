@@ -5,6 +5,11 @@ from gmm_specializer.gmm import compute_distance_BIC
 from mrjob.protocol import PickleProtocol as protocol
 
 class AllPairsBicScoreMRJob(ClusterMRJob):
+    
+    def job_runner_kwargs(self):
+        config = super(AllPairsBicScoreMRJob, self).job_runner_kwargs()
+        config['jobconf']['mapred.line.input.format.linespermap'] = 16
+        return config
 
     def mapper(self, key, value):
         """

@@ -13,6 +13,8 @@ from cluster_scoremrjob import ScoreMRJob
 from cluster_sgmtmrjob import SegmentMRJob
 from cluster_bicmrjob import BICMRJob
 
+import cluster_tools as tools
+
 class MRhelper:
     def __init__(self, em_iters, X, gmm_list):
         #For Naive Python
@@ -21,7 +23,7 @@ class MRhelper:
         self.gmm_list = gmm_list
         
         #For mrjob
-        pickle.dump(self.X, open('self_X', 'w'))
+        tools.binary_dump(self.X, 'self_X')
         os.chmod("self_X", S_IRUSR | S_IWUSR | S_IXUSR | \
                                  S_IRGRP | S_IXGRP |           \
                                  S_IROTH | S_IXOTH             )

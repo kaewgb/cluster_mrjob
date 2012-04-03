@@ -15,9 +15,7 @@ import getopt
 import h5py
 
 from gmm_specializer.gmm import *
-from cluster_mrjob_helper import *
-from all_pairs_BIC_score import AllPairsBicScore
-#from mrjob.protocol import PickleProtocol as protocol
+
 
 MINVALUEFORMINUSLOG = -1000.0
 
@@ -27,9 +25,8 @@ class Diarizer(object):
         #self.variant_param_spaces = variant_param_spaces
         #self.device_id = device_id
         #self.names_of_backends = names_of_backends
-        self.sgmnt_count = 0
+
         f = open(f_file_name, "rb")
-        self.ftime = open('HadoopTime'+str(time.time()), 'w')
 
         print "...Reading in HTK feature file..."
         
@@ -91,9 +88,8 @@ class Diarizer(object):
             pruned_list = l
 
         floatArray = np.array(pruned_list, dtype = np.float32)
-        print 'floatArray.shape', floatArray.shape
         self.X = floatArray.reshape(num_speech_frames, D)
-        print 'num_speech_frames, D', num_speech_frames, ',', D
+        
         self.N = self.X.shape[0]
         self.D = self.X.shape[1]
 
@@ -231,210 +227,60 @@ class Diarizer(object):
         self.M = M
         self.init_num_clusters = K
         self.gmm_list = [GMM(self.M, self.D, cvtype=cvtype) for i in range(K)]
-    
-    def compare_array(self, a, b):
-        if len(a) != len(b):
-            print 'len(a) = {0} != {1} = len(b)'.format(len(a), len(b))
-            return False
-        cnt_a = [0 for i in range(0,16)]
-        cnt_b = [0 for i in range(0,16)]
-        for i in a:
-            if i >= 16:
-                print 'i=', i 
-                sys.exit()
-            cnt_a[i] = cnt_a[i] + 1
-            
-        for i in b:
-            cnt_b[i] = cnt_b[i] + 1
-            
-        for i in range(0, len(cnt_a)):
-            if cnt_a[i] != cnt_b[i]:
-                print 'cnt_a[{0}] = {1} != {2} = cnt_b[{0}]'.format(i, cnt_a[i], cnt_b[i])
-                return False
-        return True
-        
-    def compare_dict(self, a, b):
-        if len(a.keys()) != len(b.keys()):
-            print "len a:", len(a.keys()), "len b:", len(b.keys())
-            return False
-        for k in a.keys():
-            if len(a[k]) != len(b[k]):
-                print "len a[{0}]={1}, len b[{0}]={2}".format(k, len(a[k]), len(b[k]))
-                return False
-            print "len a[{0}]={1} = len b[{0}]".format(k, len(a[k]))
-            for i in range(0, len(a[k])):
-                if len(a[k][i]) != len(b[k][i]):
-                    print "len a[{0}][{1}]= {2} != {3} = len b[{0}][{1}]".format(k, i, len(a[k][i]), len(b[k][i]))
-                    return False
-                print "len a[{0}][{1}] = {2} = len b[{0}][{1}]".format(k, i, len(a[k][i]))
-                for j in range(0, len(a[k][i])):
-                    if a[k][i][j] != b[k][i][j]:
-                        print "a[{0}][{1}][{4}] = {2} != {3} = b[{0}][{1}][{4}]".format(k,i,a[k][i][j], b[k][i][j], j)
-                        return False
-        print "dict a and b are equal"
-        return True
-    
-#    def compare_data_list(self, a, b):
-#        k = 0
-#        if len(a) != len(b):
-#            print "len a={1}, len b={2}".format(k, len(a), len(b))
-#            return False
-#        print "len a = {1} = len b".format(k, len(a))
-#        for i in range(0, len(a)):
-#            if len(a[i]) != len(b[i]):
-#                print "len a[{1}] = {2} != {3} = len b[{1}]".format(k, i, len(a[i]), len(b[i]))
-#                return False
-#            print "len a[{1}] = {2} = len b[{1}]".format(k, i, len(a[i]))
-#            for j in range(0, len(a[i])):
-#                if a[i][j] != b[i][j]:
-#                    print "a[{1}][{4}] = {2} != {3} = b[{1}][{4}]".format(k,i,a[i][j], b[i][j], j)
-#                    return False
 
-    def compare_features(self, a, b, i, ii):
-        k=0
-        if len(a) != len(b):
-            print "len a[{0}]={1}, len b[{3}]={2}".format(i, len(a), len(b),ii)
-            return False
-        for j in range(0, len(a)):
-            if a[j] != b[j]:
-                #print "a[{1}][{4}] = {2} != {3} = b[{5}][{4}]".format(k,i,a[j], b[j], j, ii)
-                return False
-        return True
-                
-    def compare_data_list(self, a, b):
-        k = 0
-        if len(a) != len(b):
-            print "len a={1}, len b={2}".format(k, len(a), len(b))
-            return False
-        print "len a = {1} = len b".format(k, len(a))
-        unmatched = range(0, len(a))
-        #for i in range(0, len(a)):
-        for i in range(0, 20):
-            matched = False
-            for ii in unmatched:
-                if self.compare_features(a[i], b[ii], i, ii):
-                    matched = True
-                    unmatched.remove(ii)
-            if matched == False:
-                print "a[{0}] unmatched".format(i)
-                return False
-        print "a and b are equal"
-        return True
-    
+
+
     def segment_majority_vote(self, interval_size, em_iters):
         
-        cloud_flag = False
-        hadoop = True
-        self.em_iters = em_iters
-        print "In segment majority vote"
-        # Resegment data based on likelihood scoring
-        score_time = time.time()
         num_clusters = len(self.gmm_list)
-        if cloud_flag == False:
-            likelihoods = self.gmm_list[0].score(self.X)
-            for g in self.gmm_list[1:]:
-                likelihoods = np.column_stack((likelihoods, g.score(self.X)))
-    
-            if num_clusters == 1:
-                most_likely = np.zeros(len(self.X))
-            else:
-                most_likely = likelihoods.argmax(axis=1)            
+
+        # Resegment data based on likelihood scoring
+        likelihoods = self.gmm_list[0].score(self.X)
+        for g in self.gmm_list[1:]:
+            likelihoods = np.column_stack((likelihoods, g.score(self.X)))
+
+        if num_clusters == 1:
+            most_likely = np.zeros(len(self.X))
         else:
-            if num_clusters == 1:
-                most_likely = np.zeros(len(self.X))
-            elif hadoop == False:
-                map_res = map(self.MRhelper.score_map, self.gmm_list)
-                most_likely = reduce(self.MRhelper.score_reduce, map_res).argmax(axis=1) #likelihoods.argmax
-            else:
-                lst = self.MRhelper.score_using_mapreduce(self.gmm_list)
-                likelihoods = lst[0]
-                for l in lst[1:]:
-                    likelihoods = np.column_stack((likelihoods, l))
-                most_likely = likelihoods.argmax(axis=1)
-                
-        self.ftime.write("Score: {0}\n".format(time.time() - score_time))
+            most_likely = likelihoods.argmax(axis=1)
+
+
+        # Across 2.5 secs of observations, vote on which cluster they should be associated with
+
+        iter_training = {}
         
-        segment_time = time.time()
-        cloud_flag = False
-        if cloud_flag == False:
-            # Across 2.5 secs of observations, vote on which cluster they should be associated with
-            iter_training = {}
-            iter_indices = {}
-            for i in range(interval_size, self.N, interval_size):
-    
-                arr = np.array(most_likely[(range(i-interval_size, i))])
-                max_gmm = int(stats.mode(arr)[0][0])
-                iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(self.X[i-interval_size:i,:])
-                iter_indices.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append((i-interval_size, i))
-    
-            arr = np.array(most_likely[(range((self.N/interval_size)*interval_size, self.N))])
+        for i in range(interval_size, self.N, interval_size):
+
+            arr = np.array(most_likely[(range(i-interval_size, i))])
             max_gmm = int(stats.mode(arr)[0][0])
-            iter_training.setdefault((self.gmm_list[max_gmm], max_gmm),[]).append(self.X[(self.N/interval_size)*interval_size:self.N,:])            
-            iter_indices.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append((((self.N-1)/interval_size)*interval_size, self.N))
-            
+            iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(self.X[i-interval_size:i,:])
 
-            # for each gmm, append all the segments and retrain
-            iter_bic_dict = {}
-            iter_bic_list = [] 
-            for gp, data_list in iter_training.iteritems():
-                g = gp[0]
-                p = gp[1]
-                cluster_data =  data_list[0]
-    
-                for d in data_list[1:]:
-                    cluster_data = np.concatenate((cluster_data, d))
-#                
-#                if self.compare_data_list(cluster_data, iter_bic_dict2[p]) == False:
-#                    sys.exit()
-#                cluster_data = iter_bic_dict2[p]
-                g.train(cluster_data, max_em_iters=em_iters)
-    
-                iter_bic_list.append((g,cluster_data))
-                iter_bic_dict[p] = cluster_data
-
-                
-        elif hadoop == False:
-            # Across 2.5 secs of observations, vote on which cluster they should be associated with
-            iter_training = {}
-            map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
-                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
-            map_res = map(self.MRhelper.vote_map, map_input)
-            map_res.insert(0, iter_training)
-            iter_training = reduce(self.MRhelper.vote_reduce, map_res)
-            
-            # for each gmm, append all the segments and retrain
-            iter_bic_dict = {}
-            iter_bic_list = []   
-            map_res = map(self.MRhelper.segment_map, iter_training.iteritems())
-            map_res.insert(0, (iter_bic_dict, iter_bic_list))
-            iter_bic_dict, iter_bic_list = reduce(self.MRhelper.segment_reduce, map_res)
-#            
-        else:
-            map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
-                            map(lambda(x): (x, x+interval_size), range(0, len(most_likely), interval_size)))
-            iter_bic_dict, iter_bic_list = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
-
+        arr = np.array(most_likely[(range((self.N/interval_size)*interval_size, self.N))])
+        max_gmm = int(stats.mode(arr)[0][0])
+        iter_training.setdefault((self.gmm_list[max_gmm], max_gmm),[]).append(self.X[(self.N/interval_size)*interval_size:self.N,:])
         
-        self.ftime.write("Segment: {0}\n".format(time.time() - segment_time))
+        iter_bic_dict = {}
+        iter_bic_list = []
+
+        # for each gmm, append all the segments and retrain
+        for gp, data_list in iter_training.iteritems():
+            g = gp[0]
+            p = gp[1]
+            cluster_data =  data_list[0]
+
+            for d in data_list[1:]:
+                cluster_data = np.concatenate((cluster_data, d))
+
+            g.train(cluster_data, max_em_iters=em_iters)
+
+            iter_bic_list.append((g,cluster_data))
+            iter_bic_dict[p] = cluster_data
 
         return iter_bic_dict, iter_bic_list, most_likely
-    
-    
-    def compute_All_BICs(self, iteration_bic_list, cloud_flag, em_iters):
-        """
-        Finds the GMM pair with the best score by comparing ALL gmm pairs   
-        """
-        if cloud_flag:
-            result = AllPairsBicScore().all_pairs_BIC_using_mapreduce(iteration_bic_list, em_iters)
-            #result = self.MRhelper.bic_using_mapreduce(iteration_bic_list, em_iters)
-        else:
-            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters)
-        return result
-            
+
+
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = True
-        self.MRhelper = MRhelper(em_iters, self.X, self.gmm_list)
-        
+
         print " ====================== CLUSTERING ====================== "
         main_start = time.time()
 
@@ -443,22 +289,13 @@ class Diarizer(object):
         per_cluster = self.N/self.init_num_clusters
         init_training = zip(self.gmm_list,np.vsplit(self.X, range(per_cluster, self.N, per_cluster)))
         
-        train_start = time.time()
-        if cloud_flag == False:
-            for g, x in init_training:
-                g.train(x, max_em_iters=em_iters)
-        else:
-            init_training = zip(self.gmm_list, range(0, self.N, per_cluster), [per_cluster for i in range(1, self.N)])
-            #map(self.MRhelper.train_map, init_training)
-            self.gmm_list = self.MRhelper.train_using_mapreduce(init_training, em_iters)
-        self.ftime.write('Train: {0}\n'.format(time.time() - train_start))
-        
-        #self.write_to_GMM('init.gmm')
+        for g, x in init_training:
+            g.train(x, max_em_iters=em_iters)
 
         # ----------- First majority vote segmentation loop ---------
         for segment_iter in range(0,NUM_SEG_LOOPS_INIT):
             iter_bic_dict, iter_bic_list, most_likely = self.segment_majority_vote(seg_length, em_iters)
-        #print "after segmenting"
+
 
         # ----------- Main Clustering Loop using BIC ------------
 
@@ -468,6 +305,7 @@ class Diarizer(object):
         total_loops = 0
         
         while (best_BIC_score > 0 and len(self.gmm_list) > 1):
+
             total_loops+=1
             for segment_iter in range(0,NUM_SEG_LOOPS):
                 iter_bic_dict, iter_bic_list, most_likely = self.segment_majority_vote(seg_length, em_iters)
@@ -511,11 +349,23 @@ class Diarizer(object):
 
             # ------- All-to-all comparison of gmms to merge -------
             else: 
-                cloud_flag = 0
-                if len(iter_bic_list) >= 2:
-                    bic_start = time.time()
-                    best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)
-                    self.ftime.write("BIC: {0}\n".format(time.time() - bic_start))               
+                l = len(iter_bic_list)
+
+                for gmm1idx in range(l):
+                    for gmm2idx in range(gmm1idx+1, l):
+                        score = 0.0
+                        g1, d1 = iter_bic_list[gmm1idx]
+                        g2, d2 = iter_bic_list[gmm2idx] 
+
+                        data = np.concatenate((d1,d2))
+                        new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
+
+                        #print "Comparing BIC %d with %d: %f" % (gmm1idx, gmm2idx, score)
+                        if score > best_BIC_score: 
+                            best_merged_gmm = new_gmm
+                            merged_tuple = (g1, g2)
+                            merged_tuple_indices = (gmm1idx, gmm2idx)
+                            best_BIC_score = score
 
             # Merge the winning candidate pair if its deriable to do so
             if best_BIC_score > 0.0:
@@ -523,7 +373,7 @@ class Diarizer(object):
                 for gp in iter_bic_list:
                     gmms_with_events.append(gp[0])
 
-                #cleanup the gmm_list - remove empty gm  best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_scorems
+                #cleanup the gmm_list - remove empty gmms
                 for g in self.gmm_list:
                     if g not in gmms_with_events and g != merged_tuple[0] and g!= merged_tuple[1]:
                         #remove
