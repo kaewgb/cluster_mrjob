@@ -4,7 +4,7 @@ Still under development.
 3 parts of specializing:
 train() - working (using file pointer)
 all_pairs_BIC_score() - working
-segment_majority_vote() - 1/6 working
+segment_majority_vote() - working (1/2 using file pointer)
 
 Note:
 - cluster_bicmrjob.py = all_pairs_BIC_score.py, it just doesn't rely on our MapReduce backend.
