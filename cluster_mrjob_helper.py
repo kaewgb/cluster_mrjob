@@ -92,12 +92,6 @@ class MRhelper:
             iter_bic_dict[p] = data
             gmm_list[p] = g             #Update trained GMMs
         return iter_bic_dict, iter_bic_list
-
-#        data_dict = {}
-#        for k, v in kv_pairs:
-#            data_dict[int(k)] = v
-#        return data_dict
-            
             
         
     def score_using_mapreduce(self, gmm_list):

@@ -14,17 +14,14 @@ class ScoreMRJob(ClusterMRJob):
         yield '{0:05d}'.format(key), likelihood
     
     def reducer(self, dummy, cols):
-        
-#        likelihoods = cols.next()
-#        for col in cols:
-#            likelihoods = np.column_stack((likelihoods, col))            
         for col in cols:
             l = col 
         yield dummy, l
-#        likelihoods = l[0]
-#        for col in l[1:]:
-#            likelihoods = np.column_stack((likelihoods, col))
-#        yield dummy, likelihoods.argmax(axis=1)
+        
+        likelihoods = cols.next()
+        for col in cols:
+            likelihoods = np.column_stack((likelihoods, col))            
+        yield dummy, likelihoods.argmax(axis=1)
     
 if __name__ == '__main__':
     ScoreMRJob.run()  
