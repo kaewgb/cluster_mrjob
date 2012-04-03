@@ -8,27 +8,31 @@ class SegmentMRJob(ClusterMRJob):
     
     def job_runner_kwargs(self):
         config = super(SegmentMRJob, self).job_runner_kwargs()
+        config['jobconf']['mapred.line.input.format.linespermap'] = 16
         config['upload_files'] += ["self_gmmlist"]
         config['upload_files'] += ["self_em_iter"]
         return config
     
     def mapper(self, pair, _):
-        arr, X = pair
+        arr, indices = pair
         max_gmm = int(stats.mode(arr)[0][0])
-        yield '{0:05d}'.format(max_gmm), X
+        yield '{0:05d}'.format(max_gmm), indices
     
        
-    def reducer(self, gmm_id, data_list):
+    def reducer(self, gmm_id, indices):
         gmm_id = int(gmm_id)
         gmm_list = pickle.load(open('self_gmmlist', 'r'))
         em_iter = pickle.load(open('self_em_iter', 'r'))
+        X = pickle.load(open('self_X', 'r'))
         
-        X = data_list.next()
-        for d in data_list:
-            X = np.concatenate((X, d))
+        start, end = indices.next()
+        cluster_data = X[start:end]
+        for d in indices:
+            start, end = d
+            cluster_data = np.concatenate((cluster_data, X[start:end]))
         
-        gmm_list[gmm_id].train(X, max_em_iters=em_iter)
-        yield gmm_id, (gmm_list[gmm_id], X)
+        gmm_list[gmm_id].train(cluster_data, max_em_iters=em_iter)
+        yield gmm_id, (gmm_list[gmm_id], cluster_data)
         
     
 if __name__ == '__main__':

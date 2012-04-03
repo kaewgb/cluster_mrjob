@@ -372,26 +372,26 @@ class Diarizer(object):
             iter_training.setdefault((self.gmm_list[max_gmm], max_gmm),[]).append(self.X[(self.N/interval_size)*interval_size:self.N,:])            
             iter_indices.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append((((self.N-1)/interval_size)*interval_size, self.N))
             
+#            map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
+#                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
             map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
-                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
-            print "len(map_input)", len(map_input)
-            print "len range", len(range(interval_size, len(most_likely), interval_size))
+                            map(lambda(x): (x, x+interval_size), range(0, len(most_likely), interval_size)))
             iter_bic_dict2, iter_bic_list2 = self.MRhelper.segment_using_mapreduce(self.gmm_list, map_input, em_iters)
 
             # for each gmm, append all the segments and retrain
-            iter_bic_dict = {}
-            iter_bic_list = [] 
-            for gp, data_list in iter_training.iteritems():
-                g = gp[0]
-                p = gp[1]
-                cluster_data =  data_list[0]
-    
-                for d in data_list[1:]:
-                    cluster_data = np.concatenate((cluster_data, d))
-#                
-                if self.compare_data_list(cluster_data, iter_bic_dict2[p]) == False:
-                    sys.exit()
-#                cluster_data = iter_bic_dict2[p]
+#            iter_bic_dict = {}
+#            iter_bic_list = [] 
+#            for gp, data_list in iter_training.iteritems():
+#                g = gp[0]
+#                p = gp[1]
+#                cluster_data =  data_list[0]
+#    
+#                for d in data_list[1:]:
+#                    cluster_data = np.concatenate((cluster_data, d))
+##                
+##                if self.compare_data_list(cluster_data, iter_bic_dict2[p]) == False:
+##                    sys.exit()
+##                cluster_data = iter_bic_dict2[p]
 #                g.train(cluster_data, max_em_iters=em_iters)
 #    
 #                iter_bic_list.append((g,cluster_data))
