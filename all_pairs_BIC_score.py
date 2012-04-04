@@ -2,6 +2,9 @@ from cluster_mrtemplate import ClusterMRJob
 import cluster_tools as tools
 
 import numpy as np
+import os
+import cPickle as pickle
+from stat import *
 from gmm_specializer.gmm import compute_distance_BIC
 from mrjob.protocol import PickleProtocol as protocol
 
@@ -10,14 +13,23 @@ class AllPairsBicScoreMRJob(ClusterMRJob):
     def job_runner_kwargs(self):
         config = super(AllPairsBicScoreMRJob, self).job_runner_kwargs()
         config['jobconf']['mapred.line.input.format.linespermap'] = 16
+        config['upload_files'] += ["self_gmmlist"]
         return config
 
     def mapper(self, key, value):
         """
         Each mapper computes the BIC score for a GMM pair
         """
+        X = tools.binary_read('self_X')
+        gmm_list = pickle.load(open('self_gmmlist', 'r'))
+        
         index1, index2 = key        
-        g1, g2, data, em_iters = value
+        gidx1, gidx2, didx1, didx2, em_iters = value
+        d1 = tools.get_data_from_indices(X, didx1)
+        d2 = tools.get_data_from_indices(X, didx2)
+        data = np.concatenate((d1, d2))
+        g1 = gmm_list[gidx1]
+        g2 = gmm_list[gidx2]
         new_gmm = g1
         score = 0
         try:
@@ -55,24 +67,25 @@ class AllPairsBicScore(object):
         self.pure_python = True
     
 
-    def all_pairs_BIC_using_mapreduce(self, iteration_bic_list, em_iters):
+    def all_pairs_BIC_using_mapreduce(self, iteration_bic_list, em_iters, X, gmm_list):
         """
         Computes the BIC score for all pairs by using MapReduce and returns
         the pair with the best score
         """
         
         print "Map-Reduce execution"
-        X = tools.binary_read('self_X')
+        pickle.dump(gmm_list, open('self_gmmlist', 'w'))
+        os.chmod("self_gmmlist", S_IRUSR | S_IWUSR | S_IXUSR | \
+                                 S_IRGRP | S_IXGRP |           \
+                                 S_IROTH | S_IXOTH             )
+        
         input = []
         l = len(iteration_bic_list)
         for gmm1idx in range(l):
             for gmm2idx in range(gmm1idx+1, l):
-                g1, idx1 = iteration_bic_list[gmm1idx]
-                g2, idx2 = iteration_bic_list[gmm2idx] 
-                d1 = tools.get_data_from_indices(X, idx1)
-                d2 = tools.get_data_from_indices(X, idx2)
-                data = np.concatenate((d1, d2))
-                an_item = protocol().write((gmm1idx,gmm2idx),(g1, g2, data, em_iters))
+                gidx1, didx1 = iteration_bic_list[gmm1idx]
+                gidx2, didx2 = iteration_bic_list[gmm2idx] 
+                an_item = protocol().write((gmm1idx,gmm2idx),(gidx1, gidx2, didx1, didx2, em_iters))
                 input.append(an_item+"\n")     
         
         mr_args = ['-v', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']
@@ -90,17 +103,19 @@ class AllPairsBicScore(object):
         # merged GMMs. Instead, we can move just indices and scores.
         # However, this re-merging is serialized...
         ind1, ind2 = merged_tuple_indices
-        g1, idx1 = iteration_bic_list[ind1]
-        g2, idx2 = iteration_bic_list[ind2]
+        gidx1, idx1 = iteration_bic_list[ind1]
+        gidx2, idx2 = iteration_bic_list[ind2]
         d1 = tools.get_data_from_indices(X, idx1)
         d2 = tools.get_data_from_indices(X, idx2)
         data = np.concatenate((d1,d2))
+        g1 = gmm_list[gidx1]
+        g2 = gmm_list[gidx2]
         new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
             
         return new_gmm, (g1, g2), merged_tuple_indices, best_score
     
     
-    def all_pairs_BIC_serial(self, iter_bic_list, em_iters, X):
+    def all_pairs_BIC_serial(self, iter_bic_list, em_iters, X, gmm_list):
         """
         Computes the BIC score for all pairs in a "serial" way and returns
         the pair with the best score
@@ -116,15 +131,13 @@ class AllPairsBicScore(object):
         for gmm1idx in range(l):
             for gmm2idx in range(gmm1idx+1, l):
                 score = 0.0
-#                g1, d1 = iter_bic_list[gmm1idx]
-#                g2, d2 = iter_bic_list[gmm2idx] 
-#                data = np.concatenate((d1, d2))
-                g1, idx1 = iter_bic_list[gmm1idx]
-                g2, idx2 = iter_bic_list[gmm2idx] 
+                gidx1, idx1 = iter_bic_list[gmm1idx]
+                gidx2, idx2 = iter_bic_list[gmm2idx] 
                 d1 = tools.get_data_from_indices(X, idx1)
                 d2 = tools.get_data_from_indices(X, idx2)
                 data = np.concatenate((d1, d2))
-                
+                g1 = gmm_list[gidx1]
+                g2 = gmm_list[gidx2]
                 new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
                 
                 if score > best_BIC_score: 

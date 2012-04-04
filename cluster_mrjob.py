@@ -398,7 +398,7 @@ class Diarizer(object):
                 cluster_data = tools.get_data_from_indices(self.X, data_indices)
                     
                 g.train(cluster_data, max_em_iters=em_iters)
-                iter_bic_list.append((g, data_indices))
+                iter_bic_list.append((p, data_indices))
                 iter_bic_dict[p] = data_indices
                 
                 
@@ -434,10 +434,10 @@ class Diarizer(object):
         Finds the GMM pair with the best score by comparing ALL gmm pairs   
         """
         if cloud_flag:
-            result = AllPairsBicScore().all_pairs_BIC_using_mapreduce(iteration_bic_list, em_iters)
+            result = AllPairsBicScore().all_pairs_BIC_using_mapreduce(iteration_bic_list, em_iters, self.X, self.gmm_list)
             #result = self.MRhelper.bic_using_mapreduce(iteration_bic_list, em_iters)
         else:
-            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters, self.X)
+            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters, self.X, self.gmm_list)
         return result
             
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
@@ -530,7 +530,7 @@ class Diarizer(object):
             if best_BIC_score > 0.0:
                 gmms_with_events = []
                 for gp in iter_bic_list:
-                    gmms_with_events.append(gp[0])
+                    gmms_with_events.append(self.gmm_list[gp[0]])
 
                 #cleanup the gmm_list - remove empty gm  best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_scorems
                 for g in self.gmm_list:
