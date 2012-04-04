@@ -40,9 +40,20 @@ def get_data_from_indices(X, indices):
         cluster_data = np.concatenate((cluster_data, X[start:end]))
     return cluster_data
 
-def binary_read_from_indices(f, start, end, D):
+def get_data_from_file_from_indices(filename, indices):
+    f = open(filename, 'r')
     N = struct.unpack('>i', f.read(4))[0]
-    end = min(end, N)
+    D = struct.unpack('>i', f.read(4))[0]
+    
+    start, end = indices[0]
+    cluster_data = binary_read_from_indices(f, start, min(N,end), D)
+    for idx in indices[1:]:
+        start, end = idx
+        X = binary_read_from_indices(f, start, min(N, end), D)
+        cluster_data = np.concatenate((cluster_data, X))
+    return cluster_data
+
+def binary_read_from_indices(f, start, end, D):
     N = end - start
     f.seek(8 + start*D*4)
     data = []

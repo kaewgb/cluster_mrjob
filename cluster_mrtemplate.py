@@ -42,6 +42,7 @@ class ClusterMRJob(MRJob):
                 "/usr/local64/lang/cuda-3.2/lib",
                 "/n/shokuji/da/penpornk/local/lib"                                            
             ])
+            config['cmdenv']['TMPDIR'] = "/scratch/tmp/penpornk" #for ASP compilation
             config['cmdenv']['C_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
             config['cmdenv']['CPLUS_INCLUDE_PATH'] = "/n/shokuji/da/penpornk/local/include"
             config['cmdenv']['BLAS'] = "/usr/lib64/atlas/libptcblas.so"
