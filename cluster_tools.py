@@ -18,3 +18,16 @@ def binary_read(filename):
     array = struct.unpack('>'+str(N*D)+'f', f.read(N*D*4))
     floatArray = np.array(array, dtype = np.float32)
     return floatArray.reshape(N, D)
+
+def compare_array(a, b):
+    if len(a) != len(b):
+        raise ValueError('len(a) = {0} != {1} = len(b)'.format(len(a), len(b)))
+    for i in range(0, len(a)):
+        if len(a[i]) != len(b[i]):
+            raise ValueError('len(a[{0}] = {1} != {2} = len(b[{0}])'.format(i, len(a[i]), len(b[i])))
+        for j in range(0, len(a[i])):
+            if a[i][j] != b[i][j]:
+                raise ValueError('a[{0}][{1}] = {2} != {3} = b[{0}][{1}]'.format(i, j, a[i][j], b[i][j])) 
+                return False
+    #print "Arrays are equal"    #<- Must comment if used in mrjob's mapper/reducer, or you'll get cPickle.UnpicklingError: invalid load key, 'A'. from protocol.py:110
+    return True

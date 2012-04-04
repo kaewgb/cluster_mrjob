@@ -1,7 +1,7 @@
 import sys
 import math
 
-def fequal(x, y):
+def equal(x, y):
     if abs(x-y) < 0.001:
         return True
     if math.isnan(x) and math.isnan(y):
@@ -9,10 +9,19 @@ def fequal(x, y):
     return False
 
 def tequal(x, y):
-    if fequal(x[0], y[0]) and fequal(x[1], y[1]):
+    if equal(x[0], y[0]) and equal(x[1], y[1]):
         return True
     return False
 
+def fequal(x, y):
+    no_features = len(x)
+    for k in range(0, no_features):
+        if not tequal(x[k], y[k]):
+            msg = 'gaussian1[features]['+str(k)+']='+str(x[k])+'!='+ \
+                str(y[k])+'= gaussian2[features]['+str(k)+']'
+            return (False, msg)
+    return (True, "")
+        
 def gequal(x, y, c):
     no_gaussians = len(x)
     gaussian_list = range(0, no_gaussians)
@@ -20,31 +29,29 @@ def gequal(x, y, c):
         gaussian1 = x[j]
         found = False
         for k in gaussian_list:
-            if(fequal(y[k]['weight'], gaussian1['weight']) and
-               tequal(y[k]['features'][0], gaussian1['features'][0])):
-                gaussian2 = y[k]
-                found = True
-                gaussian_list.remove(k)
-                break
+            if equal(y[k]['weight'], gaussian1['weight']):
+                found, msg = fequal(y[k]['features'], gaussian1['features'])
+                if found:
+                    gaussian2 = y[k]
+                    gaussian_list.remove(k)
+                    break
         if not found:
+            print msg
             print 'Cannot find any weights in cluster#', c ,'that is matched with gaussian#', j
             return False
         else:
             print 'Matched gaussian#', j, 'with gaussian#', k, 'of cluster#', c
-        no_features = len(gaussian1['features'])
-        if len(gaussian2['features']) != no_features:
-            print 'Number of features are not equal'
-            return False
-        for k in range(0, no_features):
-            if not tequal(gaussian1['features'][k], gaussian2['features'][k]):
-                print 'gaussian1[features][', k,']=', gaussian1['features'][k], '!=', \
-                    gaussian2['features'][k], '= gaussian2[features][',k,']'
-                return False
     return True
 
 def check():
-    gmm1 = parse(sys.argv[1])
-    gmm2 = parse(sys.argv[2])
+    if len(sys.argv) > 3:
+        no_features=int(sys.argv[3])
+        gmm1 = parse(sys.argv[1], no_features=no_features)
+        gmm2 = parse(sys.argv[2], no_features=no_features)
+    else:
+        gmm1 = parse(sys.argv[1])
+        gmm2 = parse(sys.argv[2])
+
     
     if len(gmm1) != len(gmm2) :
         print 'len(gmm1) = ', len(gmm1), '!= ', len(gmm2), ' = len(gmm2)'
@@ -68,11 +75,10 @@ def check():
     print 'The outputs are equal'
     return True
         
-def parse(input):
+def parse(input, no_features=60): #Change to 19 if use with AMI data
     f = open(input, 'r')
     lines = f.readlines()
     no_clusters = int(lines[0][20:])
-    no_features = 60 #Change to 19 if use with AMI data
     i = 1
     clusters = []
     while i < len(lines):
