@@ -41,7 +41,7 @@ def get_data_from_indices(X, indices):
     return cluster_data
 
 def get_data_from_file_from_indices(filename, indices):
-    f = open(filename, 'r')
+    f = open(filename, 'rb')
     N = struct.unpack('>i', f.read(4))[0]
     D = struct.unpack('>i', f.read(4))[0]
     
@@ -51,6 +51,7 @@ def get_data_from_file_from_indices(filename, indices):
         start, end = idx
         X = binary_read_from_indices(f, start, min(N, end), D)
         cluster_data = np.concatenate((cluster_data, X))
+    f.close()
     return cluster_data
 
 def binary_read_from_indices(f, start, end, D):
