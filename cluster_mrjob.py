@@ -391,7 +391,23 @@ class Diarizer(object):
     
                 iter_bic_list.append((g,cluster_data))
                 iter_bic_dict[p] = cluster_data
-
+                
+#            for gp, data_indices in iter_indices.iteritems():
+#                g, p = gp
+#                cluster_indices = data_indices[0]
+#                for d in data_indices[1:]:
+#                    cluster_indices.append(d)
+#                    
+#                start, end = cluster_indices[0]
+#                cluster_data = self.X[start:end]
+#                for idx in cluster_indices[1:]:
+#                    start, end = idx
+#                    cluster_data = np.concatenate((cluster_data, self.X[start, end]))
+#                    
+#                g.train(cluster_data, max_em_iters=em_iters)
+#                iter_bic_list.append((g,cluster_indices))
+#                iter_bic_dict[p] = cluster_indices
+                
                 
         elif hadoop == False:
             # Across 2.5 secs of observations, vote on which cluster they should be associated with

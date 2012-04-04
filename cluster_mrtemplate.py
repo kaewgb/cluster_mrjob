@@ -80,7 +80,7 @@ class ClusterMRJob(MRJob):
     def hadoop_job_runner_kwargs(self):
         config = super(ClusterMRJob, self).hadoop_job_runner_kwargs()
         config['hadoop_extra_args'] += [
-            "-files", "hdfs:///user/penpornk/tmp/self_X#self_X", #Generic option, has to come before verbose (used to be -cacheFile in Hadoop 0.15)
+            "-files", "hdfs:///user/penpornk/tmp/self_X#self_X,hdfs:///user/penpornk/tmp/compare_X#compare_X", #Generic option, has to come before verbose (used to be -cacheFile in Hadoop 0.15)
             "-verbose"
         #    "-mapdebug", "/n/shokuji/da/penpornk/diarizer/debug.sh"
         ]
