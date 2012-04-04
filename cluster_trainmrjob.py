@@ -5,8 +5,6 @@ class TrainMRJob(ClusterMRJob):
     
     def mapper(self, pair, _):
         X = tools.binary_read('self_X')
-        Y = pickle.load(open('compare_X', 'r'))
-        tools.compare_array(X, Y)
         id, (g, start, interval), em_iters = pair
         end = start+interval
         g.train(X[start:end], max_em_iters=em_iters)

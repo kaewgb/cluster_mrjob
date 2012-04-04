@@ -1,4 +1,5 @@
 from cluster_mrtemplate import ClusterMRJob
+import cluster_tools as tools
 
 import numpy as np
 from gmm_specializer.gmm import compute_distance_BIC
@@ -61,14 +62,16 @@ class AllPairsBicScore(object):
         """
         
         print "Map-Reduce execution"
-        
+        X = tools.binary_read('self_X')
         input = []
         l = len(iteration_bic_list)
         for gmm1idx in range(l):
             for gmm2idx in range(gmm1idx+1, l):
-                g1, d1 = iteration_bic_list[gmm1idx]
-                g2, d2 = iteration_bic_list[gmm2idx]
-                data = np.concatenate((d1,d2))
+                g1, idx1 = iteration_bic_list[gmm1idx]
+                g2, idx2 = iteration_bic_list[gmm2idx] 
+                d1 = tools.get_data_from_indices(X, idx1)
+                d2 = tools.get_data_from_indices(X, idx2)
+                data = np.concatenate((d1, d2))
                 an_item = protocol().write((gmm1idx,gmm2idx),(g1, g2, data, em_iters))
                 input.append(an_item+"\n")     
         
@@ -87,15 +90,17 @@ class AllPairsBicScore(object):
         # merged GMMs. Instead, we can move just indices and scores.
         # However, this re-merging is serialized...
         ind1, ind2 = merged_tuple_indices
-        g1, d1 = iteration_bic_list[ind1]
-        g2, d2 = iteration_bic_list[ind2]
+        g1, idx1 = iteration_bic_list[ind1]
+        g2, idx2 = iteration_bic_list[ind2]
+        d1 = tools.get_data_from_indices(X, idx1)
+        d2 = tools.get_data_from_indices(X, idx2)
         data = np.concatenate((d1,d2))
         new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
             
         return new_gmm, (g1, g2), merged_tuple_indices, best_score
     
     
-    def all_pairs_BIC_serial(self, iter_bic_list, em_iters):
+    def all_pairs_BIC_serial(self, iter_bic_list, em_iters, X):
         """
         Computes the BIC score for all pairs in a "serial" way and returns
         the pair with the best score
@@ -111,10 +116,15 @@ class AllPairsBicScore(object):
         for gmm1idx in range(l):
             for gmm2idx in range(gmm1idx+1, l):
                 score = 0.0
-                g1, d1 = iter_bic_list[gmm1idx]
-                g2, d2 = iter_bic_list[gmm2idx] 
-
-                data = np.concatenate((d1,d2))
+#                g1, d1 = iter_bic_list[gmm1idx]
+#                g2, d2 = iter_bic_list[gmm2idx] 
+#                data = np.concatenate((d1, d2))
+                g1, idx1 = iter_bic_list[gmm1idx]
+                g2, idx2 = iter_bic_list[gmm2idx] 
+                d1 = tools.get_data_from_indices(X, idx1)
+                d2 = tools.get_data_from_indices(X, idx2)
+                data = np.concatenate((d1, d2))
+                
                 new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
                 
                 if score > best_BIC_score: 

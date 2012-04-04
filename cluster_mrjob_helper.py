@@ -24,18 +24,12 @@ class MRhelper:
         
         #For mrjob
         tools.binary_dump(self.X, 'self_X')
-        pickle.dump(self.X, open('compare_X', 'w'))
         os.chmod("self_X", S_IRUSR | S_IWUSR | S_IXUSR | \
-                                 S_IRGRP | S_IXGRP |           \
-                                 S_IROTH | S_IXOTH             )
-        os.chmod("compare_X", S_IRUSR | S_IWUSR | S_IXUSR | \
                                  S_IRGRP | S_IXGRP |           \
                                  S_IROTH | S_IXOTH             )
         from subprocess import call
         call(["/n/shokuji/da/penpornk/local/hadoop/bin/hadoop", "dfs", "-rm", "/user/penpornk/tmp/self_X"])
         call(["/n/shokuji/da/penpornk/local/hadoop/bin/hadoop", "dfs", "-put", "self_X", "/user/penpornk/tmp/self_X"])
-        call(["/n/shokuji/da/penpornk/local/hadoop/bin/hadoop", "dfs", "-rm", "/user/penpornk/tmp/compare_X"])
-        call(["/n/shokuji/da/penpornk/local/hadoop/bin/hadoop", "dfs", "-put", "compare_X", "/user/penpornk/tmp/compare_X"])
         
     def train_map(self, init_training):
         g, start, interval = init_training;

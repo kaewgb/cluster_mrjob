@@ -14,6 +14,7 @@ import os.path
 import getopt
 import h5py
 
+import cluster_tools as tools
 from gmm_specializer.gmm import *
 from cluster_mrjob_helper import *
 from all_pairs_BIC_score import AllPairsBicScore
@@ -326,7 +327,7 @@ class Diarizer(object):
         cloud_flag = False
         hadoop = True
         self.em_iters = em_iters
-        print "In segment majority vote"
+        #print "In segment majority vote"
         # Resegment data based on likelihood scoring
         score_time = time.time()
         num_clusters = len(self.gmm_list)
@@ -370,43 +371,35 @@ class Diarizer(object):
             arr = np.array(most_likely[(range((self.N/interval_size)*interval_size, self.N))])
             max_gmm = int(stats.mode(arr)[0][0])
             iter_training.setdefault((self.gmm_list[max_gmm], max_gmm),[]).append(self.X[(self.N/interval_size)*interval_size:self.N,:])            
-            iter_indices.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append((((self.N-1)/interval_size)*interval_size, self.N))
+            iter_indices.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append((((self.N)/interval_size)*interval_size, self.N))
             
 
             # for each gmm, append all the segments and retrain
             iter_bic_dict = {}
             iter_bic_list = [] 
-            for gp, data_list in iter_training.iteritems():
-                g = gp[0]
-                p = gp[1]
-                cluster_data =  data_list[0]
-    
-                for d in data_list[1:]:
-                    cluster_data = np.concatenate((cluster_data, d))
-#                
-#                if self.compare_data_list(cluster_data, iter_bic_dict2[p]) == False:
-#                    sys.exit()
-#                cluster_data = iter_bic_dict2[p]
-                g.train(cluster_data, max_em_iters=em_iters)
-    
-                iter_bic_list.append((g,cluster_data))
-                iter_bic_dict[p] = cluster_data
-                
-#            for gp, data_indices in iter_indices.iteritems():
-#                g, p = gp
-#                cluster_indices = data_indices[0]
-#                for d in data_indices[1:]:
-#                    cluster_indices.append(d)
-#                    
-#                start, end = cluster_indices[0]
-#                cluster_data = self.X[start:end]
-#                for idx in cluster_indices[1:]:
-#                    start, end = idx
-#                    cluster_data = np.concatenate((cluster_data, self.X[start, end]))
-#                    
+#            for gp, data_list in iter_training.iteritems():
+#                g = gp[0]
+#                p = gp[1]
+#                cluster_data =  data_list[0]
+#    
+#                for d in data_list[1:]:
+#                    cluster_data = np.concatenate((cluster_data, d))
+##                
+##                if self.compare_data_list(cluster_data, iter_bic_dict2[p]) == False:
+##                    sys.exit()
+##                cluster_data = iter_bic_dict2[p]
 #                g.train(cluster_data, max_em_iters=em_iters)
-#                iter_bic_list.append((g,cluster_indices))
-#                iter_bic_dict[p] = cluster_indices
+#    
+#                iter_bic_list.append((g,cluster_data))
+#                iter_bic_dict[p] = cluster_data
+                
+            for gp, data_indices in iter_indices.iteritems():
+                g, p = gp
+                cluster_data = tools.get_data_from_indices(self.X, data_indices)
+                    
+                g.train(cluster_data, max_em_iters=em_iters)
+                iter_bic_list.append((g, data_indices))
+                iter_bic_dict[p] = data_indices
                 
                 
         elif hadoop == False:
@@ -444,11 +437,11 @@ class Diarizer(object):
             result = AllPairsBicScore().all_pairs_BIC_using_mapreduce(iteration_bic_list, em_iters)
             #result = self.MRhelper.bic_using_mapreduce(iteration_bic_list, em_iters)
         else:
-            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters)
+            result = AllPairsBicScore().all_pairs_BIC_serial(iteration_bic_list, em_iters, self.X)
         return result
             
     def cluster(self, em_iters, KL_ntop, NUM_SEG_LOOPS_INIT, NUM_SEG_LOOPS, seg_length):
-        cloud_flag = True
+        cloud_flag = False
         self.MRhelper = MRhelper(em_iters, self.X, self.gmm_list)
         
         print " ====================== CLUSTERING ====================== "
@@ -527,7 +520,7 @@ class Diarizer(object):
 
             # ------- All-to-all comparison of gmms to merge -------
             else: 
-                cloud_flag = 0
+                cloud_flag = 1
                 if len(iter_bic_list) >= 2:
                     bic_start = time.time()
                     best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)

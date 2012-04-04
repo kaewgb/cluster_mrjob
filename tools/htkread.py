@@ -23,6 +23,20 @@ def binary_read(filename):
     floatArray = np.array(array, dtype = np.float32)
     return floatArray.reshape(N, D)
 
+def partial_binary_read(f, start, end, D):
+    N = struct.unpack('>i', f.read(4))[0]
+    end = min(end, N)
+    N = end - start
+    f.seek(8 + start*D*4)
+    data = []
+    for i in range(0, N):
+        features = struct.unpack('>'+str(D)+'f', f.read(D*4))
+#        print features
+#        sys.exit()
+        data.extend(features)
+    floatArray = np.array(data, dtype = np.float32)
+    return floatArray.reshape(N, D)
+
 def compare_array(a, b):
     if len(a) != len(b):
         print 'len(a) = {0} != {1} = len(b)'.format(len(a), len(b))
@@ -109,4 +123,10 @@ if __name__ == '__main__':
     print X.shape
     print Y.shape
     compare_array(X, Y)
+    
+    f = open("dumpX")
+    Z = partial_binary_read(f, 70000, 70250, D)
+    print Z.shape
+    compare_array(X[70000:70250], Z)
+    f.close()
 

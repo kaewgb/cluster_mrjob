@@ -31,3 +31,25 @@ def compare_array(a, b):
                 return False
     #print "Arrays are equal"    #<- Must comment if used in mrjob's mapper/reducer, or you'll get cPickle.UnpicklingError: invalid load key, 'A'. from protocol.py:110
     return True
+
+def get_data_from_indices(X, indices):
+    start, end = indices[0]
+    cluster_data = X[start:end]
+    for idx in indices[1:]:
+        start, end = idx
+        cluster_data = np.concatenate((cluster_data, X[start:end]))
+    return cluster_data
+
+def binary_read_from_indices(f, start, end, D):
+    N = struct.unpack('>i', f.read(4))[0]
+    end = min(end, N)
+    N = end - start
+    f.seek(8 + start*D*4)
+    data = []
+    for i in range(0, N):
+        features = struct.unpack('>'+str(D)+'f', f.read(D*4))
+#        print features
+#        sys.exit()
+        data.extend(features)
+    floatArray = np.array(data, dtype = np.float32)
+    return floatArray.reshape(N, D)
