@@ -27,7 +27,7 @@ class Diarizer(object):
         #self.names_of_backends = names_of_backends
 
         f = open(f_file_name, "rb")
-        self.ftime = open('SwapTime'+str(time.time()), 'w')
+        self.ftime = open('serial/logs/SwapTime'+str(time.time()), 'w')
 
         print "...Reading in HTK feature file..."
         
@@ -393,6 +393,8 @@ class Diarizer(object):
 
             self.ftime.write("BIC: {0}\n".format(time.time() - bic_time))
             print " size of each cluster:", [ g.M for g in self.gmm_list]
+#            self.ftime.close()
+#            sys.exit()
             
         print "=== Total clustering time: ", time.time()-main_start
         print "=== Final size of each cluster:", [ g.M for g in self.gmm_list]

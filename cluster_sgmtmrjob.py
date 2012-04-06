@@ -26,14 +26,12 @@ class SegmentMRJob(ClusterMRJob):
         em_iter = pickle.load(open('self_em_iter', 'r'))
         X = tools.binary_read('self_X')
         
-        start, end = indices.next()
-        cluster_data = X[start:end]
-        for d in indices:
-            start, end = d
-            cluster_data = np.concatenate((cluster_data, X[start:end]))
-        
+        data_indices = []
+        for i in indices:
+            data_indices.append(i)
+        cluster_data = tools.get_data_from_indices(X, data_indices)
         gmm_list[gmm_id].train(cluster_data, max_em_iters=em_iter)
-        yield gmm_id, (gmm_list[gmm_id], cluster_data)
+        yield (gmm_id, data_indices), gmm_list[gmm_id]
         
     
 if __name__ == '__main__':

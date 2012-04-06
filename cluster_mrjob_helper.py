@@ -2,6 +2,8 @@ import numpy as np
 import scipy.stats.mstats as stats
 
 import os
+import sys
+import time
 import cPickle as pickle
 from stat import *
 
@@ -40,12 +42,18 @@ class MRhelper:
         mr_args = ['-v', '--strict-protocols', '-r', 'hadoop','--input-protocol', 'pickle','--output-protocol','pickle','--protocol','pickle']    
         input = []
         count = 0
+        t = time.time()
         for pair in init_training:
+            g, start, interval = pair
+            #g.initialize_asp_mod()
             input.append((count, pair, em_iters))
             count = count+1
         task_args = [protocol.write(pair, None)+"\n" for pair in input]
+        print "[train] preparation time:", time.time()-t
+        t = time.time()
         job = TrainMRJob(args=mr_args).sandbox(stdin=task_args)
-        runner = job.make_runner()        
+        runner = job.make_runner()
+        print "[train] init mrjob:", time.time()-t        
         runner.run()
         kv_pairs = map(job.parse_output_line, runner.stream_output())
         #keys = map(lambda(k, v): k, kv_pairs)
@@ -54,22 +62,19 @@ class MRhelper:
         
         
     def segment_map(self, iter_item):
-        gp, data_list = iter_item
+        gp, data_indices = iter_item
         g = gp[0]
         p = gp[1]
-        cluster_data =  data_list[0]
-
-        for d in data_list[1:]:
-            cluster_data = np.concatenate((cluster_data, d))
+        cluster_data =  tools.get_data_from_indices(self.X, data_indices)
 
         g.train(cluster_data, max_em_iters=self.em_iters)
-        return (g, p, cluster_data)
+        return (g, p, data_indices)
 
     def segment_reduce(self, x, y):
         iter_bic_dict, iter_bic_list = x
-        g, p, cluster_data = y
-        iter_bic_list.append((g, cluster_data))
-        iter_bic_dict[p] = cluster_data
+        g, p, data_indices = y
+        iter_bic_list.append((p, data_indices))
+        iter_bic_dict[p] = data_indices
         return (iter_bic_dict, iter_bic_list)
     
     def segment_using_mapreduce(self, gmm_list, map_input, em_iter):
@@ -88,12 +93,11 @@ class MRhelper:
         runner = job.make_runner()
         runner.run()
         kv_pairs = map(job.parse_output_line, runner.stream_output())
-        iter_bic_list = map(lambda(k, v): v, kv_pairs)
+        iter_bic_list = map(lambda(k, v): k, kv_pairs)
         iter_bic_dict = {}
         for pair in kv_pairs:
-            p, (g, data) = pair
-            p = int(p)
-            iter_bic_dict[p] = data
+            (p, data_indices), g = pair
+            iter_bic_dict[p] = data_indices
             gmm_list[p] = g             #Update trained GMMs
         return iter_bic_dict, iter_bic_list
             
@@ -122,12 +126,12 @@ class MRhelper:
         return x
    
     def vote_map(self, map_input):
-        arr, X = map_input
-        return (int(stats.mode(arr)[0][0]), X)
+        arr, idX = map_input
+        return (int(stats.mode(arr)[0][0]), idX)
     
     def vote_reduce(self, iter_training, item):
-        max_gmm, X = item
-        iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(X)
+        max_gmm, idX = item
+        iter_training.setdefault((self.gmm_list[max_gmm],max_gmm),[]).append(idX)
         return iter_training
     
     def bic_using_mapreduce(self, iteration_bic_list, em_iters):

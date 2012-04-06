@@ -8,38 +8,55 @@ from stat import *
 from gmm_specializer.gmm import compute_distance_BIC
 from mrjob.protocol import PickleProtocol as protocol
 
+import time
+import sys
+import mrjob.util as util
+
 class AllPairsBicScoreMRJob(ClusterMRJob):
     
     def job_runner_kwargs(self):
         config = super(AllPairsBicScoreMRJob, self).job_runner_kwargs()
         config['jobconf']['mapred.line.input.format.linespermap'] = 16
-        config['upload_files'] += ["iter_gmm_list"]
+        #config['upload_files'] += ["iter_gmm_list"]
+        config['upload_files'] += ['gmm.tgz']
         return config
 
     def mapper(self, key, value):
         """
         Each mapper computes the BIC score for a GMM pair
         """
-        #X = tools.binary_read('self_X')
-        iter_gmm_list = pickle.load(open('iter_gmm_list', 'r'))
+        
+        overall = t = time.time()
         
         index1, index2 = key        
         didx1, didx2, em_iters = value
-#        f = open('self_X', 'rb')
+
+        t = time.time()
+#        X = tools.binary_read('self_X')
+#        d1 = tools.get_data_from_indices(X, didx1)
+#        d2 = tools.get_data_from_indices(X, didx2)
+#        sys.stderr.write("get_data_from_indices: {0}\n".format(time.time()-t))
         d1 = tools.get_data_from_file_from_indices('self_X', didx1)
         d2 = tools.get_data_from_file_from_indices('self_X', didx2)
-#        f.close()
+        sys.stderr.write("get_data_from_file_from_indices: {0}\n".format(time.time()-t))
         data = np.concatenate((d1, d2))
-        g1 = iter_gmm_list[index1]
-        g2 = iter_gmm_list[index2]
+        
+        t = time.time()
+        util.unarchive('gmm.tgz', 'gmm')
+        g1 = pickle.load(open('gmm/'+str(index1), 'r'))
+        g2 = pickle.load(open('gmm/'+str(index2), 'r'))
+        sys.stderr.write("read iter_gmm_list: {0}\n".format(time.time()-t))
         new_gmm = g1
         score = 0
+        t = time.time()
         try:
             new_gmm, score = compute_distance_BIC(g1, g2, data, em_iters)
         except:
             raise
         #data_to_yield = (score, new_gmm, g1, g2, index1, index2)
         data_to_yield = (score, index1, index2)
+        sys.stderr.write("compute_distance_BIC: {0}\n".format(time.time()-t))
+        sys.stderr.write("total BIC time: {0}\n".format(time.time()-overall))
         yield 1, data_to_yield
     
     
@@ -73,11 +90,22 @@ class AllPairsBicScore(object):
         """
         
         print "Map-Reduce execution"
-        iter_gmm_list = map(lambda(gidx, didx): gmm_list[gidx], iteration_bic_list)
-        pickle.dump(iter_gmm_list, open('iter_gmm_list', 'w'))
-        os.chmod("iter_gmm_list", S_IRUSR | S_IWUSR | S_IXUSR | \
-                                 S_IRGRP | S_IXGRP |           \
-                                 S_IROTH | S_IXOTH             )
+#        iter_gmm_list = map(lambda(gidx, didx): gmm_list[gidx], iteration_bic_list)
+#        pickle.dump(iter_gmm_list, open('iter_gmm_list', 'w'))
+#        os.chmod("iter_gmm_list", S_IRUSR | S_IWUSR | S_IXUSR | \
+#                                 S_IRGRP | S_IXGRP |           \
+#                                 S_IROTH | S_IXOTH             )
+        
+        from subprocess import call
+        call(["mkdir", "-p", "gmm"])
+        for i in range (0, len(iteration_bic_list)):
+            gidx, didx = iteration_bic_list[i]
+            pickle.dump(gmm_list[gidx], open('gmm/'+str(i), 'w'))
+            os.chmod("iter_gmm_list", S_IRUSR | S_IWUSR | S_IXUSR | \
+                                      S_IRGRP | S_IXGRP |           \
+                                      S_IROTH | S_IXOTH             )
+        import mrjob.util as util
+        util.tar_and_gzip('gmm', 'gmm.tgz') 
         
         input = []
         l = len(iteration_bic_list)

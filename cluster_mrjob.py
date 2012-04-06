@@ -354,9 +354,8 @@ class Diarizer(object):
                 most_likely = likelihoods.argmax(axis=1)
                 
         self.ftime.write("Score: {0}\n".format(time.time() - score_time))
-        
+        cloud_flag = True
         segment_time = time.time()
-        cloud_flag = False
         if cloud_flag == False:
             # Across 2.5 secs of observations, vote on which cluster they should be associated with
             iter_training = {}
@@ -406,7 +405,7 @@ class Diarizer(object):
             # Across 2.5 secs of observations, vote on which cluster they should be associated with
             iter_training = {}
             map_input = zip(np.hsplit(np.array(most_likely), range(interval_size, len(most_likely), interval_size)),
-                            np.vsplit(self.X, range(interval_size, len(most_likely), interval_size)))
+                            map(lambda(x):(x, x+interval_size), range(0, len(most_likely), interval_size)))
             map_res = map(self.MRhelper.vote_map, map_input)
             map_res.insert(0, iter_training)
             iter_training = reduce(self.MRhelper.vote_reduce, map_res)
@@ -461,6 +460,14 @@ class Diarizer(object):
             #map(self.MRhelper.train_map, init_training)
             self.gmm_list = self.MRhelper.train_using_mapreduce(init_training, em_iters)
         self.ftime.write('Train: {0}\n'.format(time.time() - train_start))
+#        self.ftime.close()
+#        sys.exit()
+        
+#        import cPickle as pickle
+#        pickle.dump(self.gmm_list, open("list1", "w"))
+#        pickle.dump(self.gmm_list, open("list2", "wb"))
+#        self.ftime.close()
+#        sys.exit()
         
         #self.write_to_GMM('init.gmm')
 
@@ -520,7 +527,7 @@ class Diarizer(object):
 
             # ------- All-to-all comparison of gmms to merge -------
             else: 
-                cloud_flag = 1
+                cloud_flag = 0
                 if len(iter_bic_list) >= 2:
                     bic_start = time.time()
                     best_merged_gmm, merged_tuple, merged_tuple_indices, best_BIC_score = self.compute_All_BICs(iter_bic_list, cloud_flag, em_iters)
@@ -545,6 +552,8 @@ class Diarizer(object):
 
             
             print " size of each cluster:", [ g.M for g in self.gmm_list]
+#            self.ftime.close()
+#            sys.exit()
             
         print "=== Total clustering time: ", time.time()-main_start
         print "=== Final size of each cluster:", [ g.M for g in self.gmm_list]
