@@ -1,8 +1,10 @@
-f = open('E001.lst', 'r')
+dataset = 'E001'
+f = open(dataset+'.lst', 'r')
 lines = f.readlines()
 output = "["
-for l in lines[0:100]:
+for l in lines[0:10]:
 	l = l.rstrip()
-	output += "\'"+l[-13:-4]+"\', "
+	#output += "\'"+l[-13:-4]+"\', "
+	output += "\'"+dataset+"/"+l[-13:-4]+"\' "
 output = output[:-1]+']'
 print output

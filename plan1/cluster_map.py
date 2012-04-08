@@ -2,6 +2,7 @@ from mrjob.job import  MRJob
 from mrjob.protocol import PickleProtocol as protocol
 
 import sys
+import time
 import ConfigParser
 from diarizer import *
 
@@ -53,8 +54,10 @@ class ClusterMRJob(MRJob):
     
     def mapper(self, key, _):
         device_id = 0
-        config_file = '/n/shokuji/da/penpornk/all/medium.cfg'
-        logfile = '/n/shokuji/da/penpornk/all/output/{0}.log'.format(key)
+        start = time.time()
+        #key = Exxx/HVCxxxxxx, i.e., E001/HVC240490 
+        config_file = '/n/shokuji/da/penpornk/all/hadoop/10/{0}.cfg'.format(key)
+        logfile = '/n/shokuji/da/penpornk/all/hadoop/10/{0}.log'.format(key)
         log = open(logfile, 'w')
         tmp = sys.stdout
         sys.stdout = log
@@ -62,7 +65,7 @@ class ClusterMRJob(MRJob):
         try:
             open(config_file)
         except IOError, err:
-            print "Error! Config file: '", config_file, "' does not exist"
+            print >> sys.stderr, "Error! Config file: '", config_file, "' does not exist"
             sys.exit(2)
             
         # Parse diarizer config file
@@ -70,15 +73,9 @@ class ClusterMRJob(MRJob):
     
         config.read(config_file)
     
-        meeting_name, f, sp, outfile, gmmfile, num_gmms, num_comps, num_em_iters, kl_ntop, num_seg_iters_init, num_seg_iters, seg_length = get_config_params(config)
-        
-        #Overwrite with Map parameters
-        meeting_name = key
-        #f = '/n/shokuji/da/penpornk/full_experiment_sets/AMI/features_ff/{0}_seg.feat.gauss.htk'.format(meeting_name)
-        f = '/u/drspeech/data/Aladdin/corpora/trecvid2011/events/E001/{0}.htk'.format(meeting_name)
-        sp = False
-        outfile = '/n/shokuji/da/penpornk/all/output/{0}.rttm'.format(meeting_name)
-        gmmfile = '/n/shokuji/da/penpornk/all/output/{0}.gmm'.format(meeting_name)
+        meeting_name, f, sp, outfile, gmmfile, num_gmms, num_comps, num_em_iters, kl_ntop, num_seg_iters_init, num_seg_iters, seg_length = get_config_params(config)        
+        print >> sys.stderr, meeting_name
+
         
         # Create tester object
         diarizer = Diarizer(f, sp)
@@ -93,6 +90,7 @@ class ClusterMRJob(MRJob):
         diarizer.write_to_RTTM(outfile, sp, meeting_name, most_likely, num_gmms, seg_length)
         diarizer.write_to_GMM(gmmfile)
         
+        print >> sys.stderr, "Time:", time.time()-start
         sys.stdout = tmp
         log.close()
         yield 1, 1
