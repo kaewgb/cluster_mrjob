@@ -56,8 +56,8 @@ class ClusterMRJob(MRJob):
         device_id = 0
         start = time.time()
         #key = Exxx/HVCxxxxxx, i.e., E001/HVC240490 
-        config_file = '/n/shokuji/da/penpornk/all/hadoop/10/{0}.cfg'.format(key)
-        logfile = '/n/shokuji/da/penpornk/all/hadoop/10/{0}.log'.format(key)
+        config_file = '/n/shokuji/da/penpornk/all/hadoop/1000/{0}.cfg'.format(key)
+        logfile = '/n/shokuji/da/penpornk/all/hadoop/1000/{0}.log'.format(key)
         log = open(logfile, 'w')
         tmp = sys.stdout
         sys.stdout = log
