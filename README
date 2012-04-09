@@ -2,9 +2,9 @@ MRJOb MapReduce specializer for hcook's gmm cluster example.
 Still under development.
 
 3 parts of specializing:
-train() - working (using file pointer)
-all_pairs_BIC_score() - working
-segment_majority_vote() - working (1/2 using file pointer)
+train() - working (using indices)
+all_pairs_BIC_score() - working (using indices)
+segment_majority_vote() - working (1/2 using indices)
 
 Note:
 - cluster_bicmrjob.py = all_pairs_BIC_score.py, it just doesn't rely on our MapReduce backend.
